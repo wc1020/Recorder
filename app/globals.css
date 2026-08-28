@@ -1,0 +1,284 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f1ea;
+  --card: #fffdf8;
+  --text: #222;
+  --muted: #666;
+  --accent: #2d6a4f;
+  --accent-hover: #1b4332;
+  --border: #e4ddd2;
+  --danger: #9b2226;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 20px;
+}
+
+.logo {
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px 48px;
+}
+
+.tabs,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.tab,
+.filter {
+  display: inline-block;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.tab:hover,
+.filter:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+}
+
+.tab.active,
+.filter.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+  margin: 8px 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.card:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+}
+
+.card-body {
+  padding: 8px 10px 12px;
+}
+
+.card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.card-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.cover {
+  display: block;
+  background: #ddd8ce;
+  object-fit: cover;
+}
+
+.cover-sm {
+  width: 64px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.cover-md {
+  width: 100%;
+  height: 210px;
+}
+
+.cover-lg {
+  width: 180px;
+  height: 270px;
+  flex-shrink: 0;
+}
+
+.cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 1.5rem;
+}
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.search-form input,
+.search-form select,
+.entry-form select,
+.entry-form input,
+.entry-form textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
+.search-form input[type="search"] {
+  flex: 1;
+  min-width: 180px;
+}
+
+.btn {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--accent-hover);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.search-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-row h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.ok {
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.detail-info {
+  flex: 1;
+  min-width: 240px;
+}
+
+.detail-info h1 {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+}
+
+.entry-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  max-width: 420px;
+}
+
+.entry-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.saved {
+  color: var(--accent);
+  margin: 0 0 12px;
+}
+
+.empty {
+  color: var(--muted);
+  padding: 24px 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

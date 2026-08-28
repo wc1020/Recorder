@@ -1,0 +1,21 @@
+---
+description: projectM 产品边界与实现约束，任何改动都要遵守
+alwaysApply: true
+---
+
+# projectM
+
+个人媒体记录站（电影 / 书 / 游戏）。详细大纲在 `docs/PLAN.md`，先读再改。
+
+## 必须
+
+- 一种作品一张 `Item`，用户记录一张 `Entry`；新类型只加 Provider，不复制三套表
+- 元数据只用 TMDB、Google Books / Open Library、Steam
+- API Key 只放环境变量，只在服务端请求
+- 代码简单直接：能一个模块说清的不要拆多层
+
+## 禁止
+
+- 爬取、解析、抓包或调用豆瓣、小黑盒及非官方代理
+- 社交、推荐算法、用户系统（第一版单用户）
+- 未更新 `docs/PLAN.md`「当前进度」就宣称阶段完成
