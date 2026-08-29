@@ -94,7 +94,9 @@ async function MediaList({
             <Link key={item.id} href={`/item/${item.id}`} className="card">
               <Cover url={item.coverUrl} title={item.title} />
               <div className="card-body">
-                <p className="card-title">{item.title}</p>
+                <p className="card-title" title={item.title}>
+                  <span>{item.title}</span>
+                </p>
                 <p className="card-meta">
                   {item.entry ? statusLabel(item.entry.status, item.type) : ""}
                   {item.entry?.rating != null ? ` · ${formatRating(item.entry.rating)}` : ""}

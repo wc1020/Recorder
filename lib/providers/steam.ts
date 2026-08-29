@@ -60,6 +60,8 @@ export type SteamGameRow = {
   playtime2WeeksMin: number;
   price: string | null;
   originalFen: number | null;
+  achUnlocked: number | null;
+  achTotal: number | null;
 };
 
 export type SteamPlayerPage = {
@@ -71,6 +73,7 @@ export type SteamPlayerPage = {
   recentlyPlayed: SteamGameRow[];
   owned: SteamGameRow[];
   family: SteamGameRow[];
+  privateAppIds: number[];
   fromCache: boolean;
   cachedAt: string | null;
   cacheReason: "offline" | "tab" | null;
@@ -184,6 +187,7 @@ export type SteamGamePage = {
   coverUrl: string | null;
   description: string | null;
   price: string | null;
+  originalFen: number | null;
   fromOwned: boolean;
   fromFamily: boolean;
   playtimeForeverMin: number;
@@ -216,6 +220,130 @@ async function steamWebGet(path: string, input: object): Promise<SteamListRespon
   url.searchParams.set("input_json", JSON.stringify(input));
   const res = await steamFetch(url);
   return (await res.json()) as SteamListResponse;
+}
+
+async function steamAccessPost(path: string, accessToken: string, input: object): Promise<unknown> {
+  const url = new URL(`https://api.steampowered.com/${path}`);
+  url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("input_json", JSON.stringify(input));
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", cache: "no-store" });
+  } catch {
+    throw new Error("连不上 Steam，请检查网络");
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("家庭库 token 无效或已过期");
+  }
+  if (!res.ok) {
+    throw new Error(`Steam 请求失败（${res.status}）`);
+  }
+  return res.json();
+}
+
+type AchProgress = { unlocked: number; total: number };
+
+async function fetchAchievementProgress(
+  steamid: string,
+  appids: number[],
+): Promise<Map<number, AchProgress>> {
+  const out = new Map<number, AchProgress>();
+  const auth = await getFamilyAccessToken(steamid);
+  if (!auth.token) return out;
+  const unique = [...new Set(appids)].filter((id) => id > 0);
+  for (let i = 0; i < unique.length; i += 80) {
+    const chunk = unique.slice(i, i + 80);
+    try {
+      const data = (await steamAccessPost(
+        "IPlayerService/GetAchievementsProgress/v1/",
+        auth.token,
+        {
+          steamid,
+          language: "schinese",
+          appids: chunk,
+        },
+      )) as {
+        response?: {
+          achievement_progress?: {
+            appid?: number;
+            unlocked?: number;
+            total?: number;
+          }[];
+        };
+      };
+      for (const row of data.response?.achievement_progress ?? []) {
+        if (!row.appid) continue;
+        out.set(row.appid, {
+          unlocked: row.unlocked ?? 0,
+          total: row.total ?? 0,
+        });
+      }
+    } catch {
+      // 这一批失败就跳过，卡片显示 —
+    }
+  }
+  return out;
+}
+
+function withProgress(
+  game: SteamGameRow,
+  progress: Map<number, AchProgress>,
+): SteamGameRow {
+  const p = progress.get(game.appid);
+  return {
+    ...game,
+    achUnlocked: p?.unlocked ?? null,
+    achTotal: p?.total ?? null,
+  };
+}
+
+function omitPrivateGames<T extends { appid: number }>(
+  games: T[],
+  privateIds: Set<number>,
+): T[] {
+  if (privateIds.size === 0) return games;
+  return games.filter((g) => !privateIds.has(g.appid));
+}
+
+function parsePrivateAppIds(raw: unknown): Set<number> {
+  const ids = new Set<number>();
+  const add = (value: unknown) => {
+    const n = Number(value);
+    if (Number.isInteger(n) && n > 0) ids.add(n);
+  };
+  const block = (raw as { response?: { private_apps?: unknown } })?.response?.private_apps;
+  if (!block) return ids;
+  if (Array.isArray(block)) {
+    for (const row of block) {
+      if (typeof row === "number" || typeof row === "string") add(row);
+      else if (row && typeof row === "object") {
+        const obj = row as { appid?: unknown; appids?: unknown };
+        add(obj.appid);
+        if (Array.isArray(obj.appids)) obj.appids.forEach(add);
+      }
+    }
+    return ids;
+  }
+  if (typeof block === "object") {
+    const appids = (block as { appids?: unknown }).appids;
+    if (Array.isArray(appids)) appids.forEach(add);
+  }
+  return ids;
+}
+
+async function fetchPrivateAppIds(steamid: string): Promise<Set<number>> {
+  const auth = await getFamilyAccessToken(steamid);
+  if (!auth.token) return new Set();
+  try {
+    const data = await steamAccessGet(
+      "IAccountPrivateAppsService/GetPrivateAppList/v1/",
+      auth.token,
+      {},
+    );
+    return parsePrivateAppIds(data);
+  } catch {
+    return new Set();
+  }
 }
 
 async function steamQuery(path: string, params: Record<string, string>): Promise<unknown> {
@@ -448,6 +576,8 @@ async function fetchFamilyLibrary(
         playtime2WeeksMin: 0,
         price: extra?.price ?? null,
         originalFen: extra?.originalFen ?? null,
+        achUnlocked: null,
+        achTotal: null,
       } satisfies SteamGameRow;
     });
     games.sort((a, b) => b.playtimeForeverMin - a.playtimeForeverMin);
@@ -672,7 +802,11 @@ function playerFromBackup(
   cacheReason: "offline" | "tab",
 ): SteamPlayerPage {
   const p = backup.player;
-  const library = mergeLibraryGames(p.owned, p.recentlyPlayed, p.family);
+  const hidden = new Set(p.privateAppIds ?? []);
+  const recentlyPlayed = omitPrivateGames(p.recentlyPlayed, hidden);
+  const owned = omitPrivateGames(p.owned, hidden);
+  const family = omitPrivateGames(p.family, hidden);
+  const library = mergeLibraryGames(owned, recentlyPlayed, family);
   if (backup.perfect) {
     perfectCache = {
       key: playedKey(library),
@@ -682,6 +816,10 @@ function playerFromBackup(
   }
   return {
     ...p,
+    recentlyPlayed,
+    owned,
+    family,
+    privateAppIds: [...hidden],
     fromCache: true,
     cachedAt: backup.savedAt,
     cacheReason,
@@ -707,7 +845,7 @@ export async function getSteamPlayerPage(opts?: {
 
 async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
   const steamid = await resolveSteamId();
-  const [summaryRaw, ownedRaw, recentRaw, familyLib] = await Promise.all([
+  const [summaryRaw, ownedRaw, recentRaw, familyLib, privateIds] = await Promise.all([
     steamQuery("ISteamUser/GetPlayerSummaries/v2/", { steamids: steamid }),
     steamQuery("IPlayerService/GetOwnedGames/v1/", {
       steamid,
@@ -719,6 +857,7 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
       count: "50",
     }),
     fetchFamilyLibrary(steamid),
+    fetchPrivateAppIds(steamid),
   ]);
 
   const player = (
@@ -736,42 +875,58 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     throw new Error("找不到公开资料。检查 STEAM_STEAMID，或把资料设为公开。");
   }
 
-  const ownedGames = (
-    (ownedRaw as { response?: { games?: OwnedGame[] } }).response?.games ?? []
-  ).slice();
+  const ownedGames = omitPrivateGames(
+    ((ownedRaw as { response?: { games?: OwnedGame[] } }).response?.games ?? []).slice(),
+    privateIds,
+  );
   ownedGames.sort((a, b) => (b.playtime_forever ?? 0) - (a.playtime_forever ?? 0));
 
-  const recentGames = (
-    recentRaw as { response?: { games?: OwnedGame[] } }
-  ).response?.games ?? [];
+  const recentGames = omitPrivateGames(
+    (recentRaw as { response?: { games?: OwnedGame[] } }).response?.games ?? [],
+    privateIds,
+  );
 
-  const extras = await fetchStoreExtras([
+  const familySource = omitPrivateGames(familyLib.games, privateIds);
+  const extraIds = [
     ...recentGames.map((g) => g.appid),
     ...ownedGames.map((g) => g.appid),
+    ...familySource.map((g) => g.appid),
+  ];
+  const [extras, progress] = await Promise.all([
+    fetchStoreExtras(extraIds),
+    fetchAchievementProgress(steamid, extraIds),
   ]);
 
   const toRow = (g: OwnedGame): SteamGameRow => {
     const extra = extras.get(g.appid);
-    return {
-      appid: g.appid,
-      name: g.name || `App ${g.appid}`,
-      coverUrl: extra?.coverUrl || storeCapsule(g.appid),
-      playtimeForeverMin: g.playtime_forever ?? 0,
-      playtime2WeeksMin: g.playtime_2weeks ?? 0,
-      price: extra?.price ?? null,
-      originalFen: extra?.originalFen ?? null,
-    };
+    return withProgress(
+      {
+        appid: g.appid,
+        name: g.name || `App ${g.appid}`,
+        coverUrl: extra?.coverUrl || storeCapsule(g.appid),
+        playtimeForeverMin: g.playtime_forever ?? 0,
+        playtime2WeeksMin: g.playtime_2weeks ?? 0,
+        price: extra?.price ?? null,
+        originalFen: extra?.originalFen ?? null,
+        achUnlocked: null,
+        achTotal: null,
+      },
+      progress,
+    );
   };
 
   const ownedIds = new Set(ownedGames.map((g) => g.appid));
   const recentById = new Map(recentGames.map((g) => [g.appid, g]));
-  const family = familyLib.games.map((g) => {
+  const family = familySource.map((g) => {
     const recent = recentById.get(g.appid);
-    return {
-      ...g,
-      playtime2WeeksMin: recent?.playtime_2weeks ?? 0,
-      playtimeForeverMin: Math.max(g.playtimeForeverMin, recent?.playtime_forever ?? 0),
-    };
+    return withProgress(
+      {
+        ...g,
+        playtime2WeeksMin: recent?.playtime_2weeks ?? 0,
+        playtimeForeverMin: Math.max(g.playtimeForeverMin, recent?.playtime_forever ?? 0),
+      },
+      progress,
+    );
   });
   const familyIds = new Set(family.map((g) => g.appid));
   const familyRecentPlaytimeMin = recentGames
@@ -793,6 +948,7 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     recentlyPlayed: recentGames.map(toRow),
     owned: ownedGames.map(toRow),
     family,
+    privateAppIds: [...privateIds],
     fromCache: false,
     cachedAt: null,
     cacheReason: null,
@@ -973,6 +1129,7 @@ async function gamePageFromBackup(appid: number): Promise<SteamGamePage | null> 
     coverUrl: row.coverUrl || storeCapsule(appid),
     description: null,
     price: row.price,
+    originalFen: row.originalFen ?? null,
     fromOwned: Boolean(owned),
     fromFamily: Boolean(family) && !owned,
     playtimeForeverMin: row.playtimeForeverMin,
@@ -1027,6 +1184,7 @@ async function fetchSteamGameLive(appid: number): Promise<SteamGamePage> {
     coverUrl: coverUrl(item?.assets) || family?.coverUrl || storeCapsule(appid),
     description: item?.basic_info?.short_description?.trim() || null,
     price: item ? priceLabel(item) : family?.price || null,
+    originalFen: item ? originalFenOf(item) : family?.originalFen ?? null,
     fromOwned: Boolean(owned),
     fromFamily: Boolean(family) && !owned,
     playtimeForeverMin: playedMin,

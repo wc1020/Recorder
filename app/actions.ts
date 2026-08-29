@@ -133,4 +133,5 @@ export async function saveSteamPaidPrice(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/");
+  revalidatePath(`/steam/${appid}`);
 }

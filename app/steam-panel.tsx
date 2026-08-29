@@ -3,7 +3,6 @@ import { Cover } from "./cover";
 import { RefreshButton } from "./refresh-button";
 import { SteamLiveGate } from "./steam-live-gate";
 import { gamePageHref } from "@/lib/game-href";
-import { PaidPriceButton } from "./paid-price-button";
 import {
   cachedPerfectCount,
   filterPerfectGames,
@@ -12,12 +11,7 @@ import {
   mergePlayedGames,
   type SteamGameRow,
 } from "@/lib/providers/steam";
-import {
-  formatBackupTime,
-  formatHours,
-  formatPlaytime,
-  formatYuan,
-} from "@/lib/steam-format";
+import { formatBackupTime, formatFenLabel, formatHours, formatYuan } from "@/lib/steam-format";
 import { ProviderNotConfiguredError } from "@/lib/providers";
 import { formatRating, statusLabel } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -57,6 +51,7 @@ export async function SteamPanel({
       data.recentlyPlayed,
       data.family,
     );
+    const paidByApp = await listPaidFen(library.map((g) => g.appid));
     const hideAppIds = [
       ...data.owned.map((g) => g.appid),
       ...data.family.map((g) => g.appid),
@@ -101,6 +96,11 @@ export async function SteamPanel({
                     : ""}
               </p>
               {data.familyError ? <p className="muted">{data.familyError}</p> : null}
+              {(data.privateAppIds?.length ?? 0) > 0 ? (
+                <p className="muted">
+                  已排除 {data.privateAppIds.length} 款 Steam 私人游戏
+                </p>
+              ) : null}
               {data.cacheReason === "offline" ? (
                 <p className="muted">
                   当前是本地备份
@@ -134,25 +134,27 @@ export async function SteamPanel({
         {current === "recent" ? (
           <SteamList
             games={data.recentlyPlayed}
+            paidByApp={paidByApp}
             empty="近两周没有记录。资料里的游戏详情需要公开。"
           />
         ) : null}
         {current === "played" ? (
-          <SteamList games={played} empty="还没有记到游玩时长。" />
+          <SteamList games={played} paidByApp={paidByApp} empty="还没有记到游玩时长。" />
         ) : null}
         {current === "perfect" ? (
           <SteamList
             games={perfect}
+            paidByApp={paidByApp}
             empty="还没有完美通关的游戏。游戏需要有 Steam 成就，且成就已全部解锁。"
           />
         ) : null}
         {current === "owned" ? (
-          <OwnedList games={data.owned} />
+          <OwnedList games={data.owned} paidByApp={paidByApp} />
         ) : null}
         {current === "family" ? (
           <>
             <FamilyHint error={data.familyError} loaded={data.family.length > 0} />
-            <SteamList games={data.family} empty={familyEmpty(data)} />
+            <SteamList games={data.family} paidByApp={paidByApp} empty={familyEmpty(data)} />
           </>
         ) : null}
         {current === "want" ? <WantList items={wantItems} /> : null}
@@ -220,7 +222,15 @@ function familyEmpty(data: {
   return "家庭库是空的。";
 }
 
-function SteamList({ games, empty }: { games: SteamGameRow[]; empty: string }) {
+function SteamList({
+  games,
+  empty,
+  paidByApp,
+}: {
+  games: SteamGameRow[];
+  empty: string;
+  paidByApp: Map<number, number>;
+}) {
   if (games.length === 0) return <p className="empty">{empty}</p>;
   return (
     <div className="grid">
@@ -228,11 +238,10 @@ function SteamList({ games, empty }: { games: SteamGameRow[]; empty: string }) {
         <Link key={game.appid} href={`/steam/${game.appid}`} className="card">
           <Cover url={game.coverUrl} title={game.name} />
           <div className="card-body">
-            <p className="card-title">{game.name}</p>
-            <p className="card-meta">
-              {formatPlaytime(game.playtimeForeverMin, game.playtime2WeeksMin)}
-              {game.price ? ` · ${game.price}` : ""}
+            <p className="card-title" title={game.name}>
+              <span>{game.name}</span>
             </p>
+            <GameCardStats game={game} paidFen={paidByApp.get(game.appid) ?? null} />
           </div>
         </Link>
       ))}
@@ -240,7 +249,56 @@ function SteamList({ games, empty }: { games: SteamGameRow[]; empty: string }) {
   );
 }
 
-async function OwnedList({ games }: { games: SteamGameRow[] }) {
+function GameCardStats({
+  game,
+  paidFen,
+}: {
+  game: SteamGameRow;
+  paidFen: number | null;
+}) {
+  const achTotal = game.achTotal ?? null;
+  const achUnlocked = game.achUnlocked ?? null;
+  const achText =
+    achTotal != null && achTotal > 0
+      ? `${achUnlocked ?? 0}/${achTotal}`
+      : achTotal === 0
+        ? "无"
+        : "—";
+  const achDone = achTotal != null && achTotal > 0 && achUnlocked === achTotal;
+  const originalFen = game.originalFen;
+  const paidShown = paidFen ?? originalFen;
+
+  return (
+    <dl className="card-stats">
+      <div className="card-stat">
+        <dt>总时长</dt>
+        <dd>{formatHours(game.playtimeForeverMin)}</dd>
+      </div>
+      <div className="card-stat">
+        <dt>近两周</dt>
+        <dd>{formatHours(game.playtime2WeeksMin)}</dd>
+      </div>
+      <div className="card-stat">
+        <dt>成就</dt>
+        <dd className={achDone ? "card-stat-done" : undefined}>{achText}</dd>
+      </div>
+      <div className="card-stat">
+        <dt>价格</dt>
+        <dd>
+          {formatFenLabel(paidShown)} / {formatFenLabel(originalFen)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function OwnedList({
+  games,
+  paidByApp,
+}: {
+  games: SteamGameRow[];
+  paidByApp: Map<number, number>;
+}) {
   if (games.length === 0) {
     return (
       <p className="empty">
@@ -248,9 +306,12 @@ async function OwnedList({ games }: { games: SteamGameRow[] }) {
       </p>
     );
   }
-  const paidByApp = await listPaidFen(games.map((g) => g.appid));
   let paidTotal = 0;
-  for (const fen of paidByApp.values()) paidTotal += fen;
+  for (const game of games) {
+    const fen = paidByApp.get(game.appid) ?? game.originalFen;
+    if (fen == null) continue;
+    paidTotal += fen;
+  }
   const originalKnown = games.filter((g) => g.originalFen != null);
   const originalTotal = originalKnown.reduce((sum, g) => sum + (g.originalFen ?? 0), 0);
 
@@ -258,40 +319,14 @@ async function OwnedList({ games }: { games: SteamGameRow[] }) {
     <>
       <p className="price-summary">
         购入总价 {formatYuan(paidTotal)}
-        {`（已填 ${paidByApp.size}/${games.length}）`}
+        {`（未填按原价，已填 ${paidByApp.size}/${games.length}）`}
         {" · "}
         原价总价 {formatYuan(originalTotal)}
         {originalKnown.length < games.length
           ? `（${originalKnown.length} 款有商店价）`
           : ""}
       </p>
-      <div className="grid">
-        {games.map((game) => (
-          <article key={game.appid} className="card">
-            <Link href={`/steam/${game.appid}`} className="card-link">
-              <Cover url={game.coverUrl} title={game.name} />
-              <div className="card-body">
-                <p className="card-title">{game.name}</p>
-                <p className="card-meta">
-                  {formatPlaytime(game.playtimeForeverMin, game.playtime2WeeksMin)}
-                </p>
-                <p className="card-meta">
-                  {game.originalFen != null
-                    ? `原价 ${game.originalFen === 0 ? "免费" : formatYuan(game.originalFen)}`
-                    : "原价未知"}
-                  {game.price && game.price !== "免费" ? ` · 现价 ${game.price}` : ""}
-                </p>
-              </div>
-            </Link>
-            <div className="card-actions">
-              <PaidPriceButton
-                appid={game.appid}
-                paidFen={paidByApp.get(game.appid) ?? null}
-              />
-            </div>
-          </article>
-        ))}
-      </div>
+      <SteamList games={games} paidByApp={paidByApp} empty="" />
     </>
   );
 }
@@ -325,7 +360,9 @@ async function WantList({
             <Link key={item.id} href={`/item/${item.id}`} className="card">
               <Cover url={item.coverUrl} title={item.title} />
               <div className="card-body">
-                <p className="card-title">{item.title}</p>
+                <p className="card-title" title={item.title}>
+                  <span>{item.title}</span>
+                </p>
                 <p className="card-meta">
                   {item.entry ? statusLabel(item.entry.status, item.type) : ""}
                   {item.entry?.rating != null ? ` · ${formatRating(item.entry.rating)}` : ""}

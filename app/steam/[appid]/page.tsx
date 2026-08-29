@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Cover } from "../../cover";
+import { PaidPriceButton } from "../../paid-price-button";
 import { getSteamGamePage } from "@/lib/providers/steam";
-import { formatPlaytime } from "@/lib/steam-format";
+import { formatFenLabel, formatPlaytime } from "@/lib/steam-format";
+import { listPaidFen } from "@/lib/steam-paid";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,8 @@ export default async function SteamGamePage({
 
   const unlocked = data.achievements?.filter((a) => a.unlocked).length ?? 0;
   const total = data.achievements?.length ?? 0;
+  const paidFen = (await listPaidFen([appid])).get(appid) ?? null;
+  const paidShown = paidFen ?? data.originalFen;
 
   return (
     <>
@@ -44,8 +48,13 @@ export default async function SteamGamePage({
           <h1>{data.name}</h1>
           <p className="muted">
             {formatPlaytime(data.playtimeForeverMin, data.playtime2WeeksMin)}
-            {data.price ? ` · ${data.price}` : ""}
           </p>
+          <p className="muted">
+            购入价 / 原价：{formatFenLabel(paidShown)} / {formatFenLabel(data.originalFen)}
+          </p>
+          {data.fromOwned ? (
+            <PaidPriceButton appid={appid} paidFen={paidFen} />
+          ) : null}
           {!data.fromOwned && data.fromFamily ? (
             <p className="muted">家庭库游戏，时长来自家庭共享记录。</p>
           ) : null}

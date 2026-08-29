@@ -4,6 +4,12 @@ export function formatYuan(fen: number): string {
   return `¥${text}`;
 }
 
+export function formatFenLabel(fen: number | null): string {
+  if (fen == null) return "—";
+  if (fen === 0) return "免费";
+  return formatYuan(fen);
+}
+
 export function formatHours(min: number): string {
   if (min <= 0) return "0 小时";
   if (min < 60) return `${min} 分钟`;
