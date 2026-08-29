@@ -1,3 +1,4 @@
+import "./lib/load-local-env";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {

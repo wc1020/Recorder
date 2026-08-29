@@ -6,14 +6,19 @@
 
 ```bash
 npm install
-copy .env.example .env
+copy .env.example local\.env
 ```
 
-在 `.env` 里填入对应 API Key（没有 Key 的类型搜索时会提示未配置，不会假装成功）：
+换电脑：`git pull`，把另一台的 `local` 文件夹整个放到工程根目录（和 `package.json` 同级），再 `npm install`、`npm run dev`。`local` 不进 git，里面是 Key、数据库、Steam 备份。
+
+在 `local/.env` 里填入对应 API Key（没有 Key 的类型搜索时会提示未配置，不会假装成功）：
 
 - `TMDB_API_KEY` — 电影
 - `GOOGLE_BOOKS_API_KEY` — 书
-- `STEAM_API_KEY` — 游戏（[申请](https://steamcommunity.com/dev/apikey)，Domain 可填 `localhost`）
+- `STEAM_API_KEY` — 游戏搜索（[申请](https://steamcommunity.com/dev/apikey)，Domain 可填 `localhost`）
+- `STEAM_STEAMID` — 游戏 Tab 拉公开资料 / 库存 / 最近游玩（17 位 SteamID64，或自定义主页名）
+- `STEAM_ACCESS_TOKEN` — 可选，家庭库列表和时长。浏览器登录 [Steam 商店](https://store.steampowered.com/) 后打开 [这页](https://store.steampowered.com/pointssummary/ajaxgetasyncconfig)，把 `webapi_token` 贴进来。大约一天过期，过期再复制一次。
+- `STEAM_REFRESH_TOKEN` — 可选。Steam 客户端 / 令牌里的 refresh_token（有效期约一年）。填了之后本站会调用 `GenerateAccessTokenForApp` 自动换新的 access_token，不必每天更新。商店页复制的 `webapi_token` 不是 refresh_token，请不要填在这一项。
 
 ```bash
 npx prisma migrate dev

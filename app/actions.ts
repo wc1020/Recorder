@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { isMediaType, isStatus } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { getProvider, ProviderNotConfiguredError } from "@/lib/providers";
+import { savePaidFen } from "@/lib/steam-paid";
 
 export async function addItem(
   _prev: { error: string } | null,
@@ -112,4 +113,24 @@ export async function saveEntry(formData: FormData): Promise<void> {
   revalidatePath("/");
   revalidatePath(`/item/${itemId}`);
   redirect(`/item/${itemId}?saved=1`);
+}
+
+export async function saveSteamPaidPrice(formData: FormData): Promise<void> {
+  const appid = Number(formData.get("appid"));
+  const raw = String(formData.get("paid") ?? "").trim();
+  if (!Number.isInteger(appid) || appid <= 0) {
+    throw new Error("无效的游戏");
+  }
+
+  if (raw === "") {
+    await savePaidFen(appid, null);
+  } else {
+    const yuan = Number(raw);
+    if (!Number.isFinite(yuan) || yuan < 0 || yuan > 999999) {
+      throw new Error("购入价须为 0–999999 的数字");
+    }
+    await savePaidFen(appid, Math.round(yuan * 100));
+  }
+
+  revalidatePath("/");
 }

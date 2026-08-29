@@ -1,3 +1,4 @@
+import "@/lib/load-local-env";
 import type { MediaType } from "@/lib/constants";
 
 export type { MediaType };
@@ -39,7 +40,7 @@ export type Provider = {
 export function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new ProviderNotConfiguredError(`未配置：请在 .env 中设置 ${name}`);
+    throw new ProviderNotConfiguredError(`未配置：请在 local/.env 中设置 ${name}`);
   }
   return value;
 }

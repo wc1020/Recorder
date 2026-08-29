@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:../local/dev.db"
 }
 
 model Item {
@@ -39,4 +39,12 @@ model Entry {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("entries")
+}
+
+model SteamPaidPrice {
+  appid     Int      @id
+  paidFen   Int      @map("paid_fen")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("steam_paid_prices")
 }

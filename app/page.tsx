@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Cover } from "./cover";
+import { SteamPanel } from "./steam-panel";
 import {
   formatRating,
   isMediaType,
@@ -16,21 +17,13 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; status?: string }>;
+  searchParams: Promise<{ type?: string; status?: string; view?: string; live?: string }>;
 }) {
   const sp = await searchParams;
-  const rawType = sp.type ?? "";
-  const type: MediaType = isMediaType(rawType) ? rawType : "movie";
-  const status = isStatus(sp.status ?? "") ? sp.status : undefined;
-
-  const items = await prisma.item.findMany({
-    where: {
-      type,
-      ...(status ? { entry: { status } } : {}),
-    },
-    include: { entry: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const raw = sp.type ?? "";
+  const type: MediaType | "game" =
+    raw === "want" ? "game" : isMediaType(raw) ? raw : "movie";
+  const gameView = raw === "want" ? "want" : sp.view;
 
   return (
     <>
@@ -39,24 +32,55 @@ export default async function Home({
         {MEDIA_TYPES.map((t) => (
           <Link
             key={t.value}
-            href={qs({ type: t.value, status })}
+            href={`/?type=${t.value}`}
             className={t.value === type ? "tab active" : "tab"}
           >
             {t.label}
           </Link>
         ))}
       </div>
+      {type === "game" ? (
+        <SteamPanel view={gameView} live={sp.live === "1"} />
+      ) : null}
+      {type === "movie" || type === "book" ? (
+        <MediaList type={type} statusRaw={sp.status} />
+      ) : null}
+    </>
+  );
+}
+
+async function MediaList({
+  type,
+  statusRaw,
+}: {
+  type: MediaType;
+  statusRaw?: string;
+}) {
+  const status = isStatus(statusRaw ?? "") ? statusRaw : undefined;
+  const all = await prisma.item.findMany({
+    where: { type },
+    include: { entry: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const items = status ? all.filter((item) => item.entry?.status === status) : all;
+  const statusCount = (value: string) =>
+    all.filter((item) => item.entry?.status === value).length;
+
+  return (
+    <>
       <div className="filters">
-        <Link href={qs({ type })} className={!status ? "filter active" : "filter"}>
+        <Link href={`/?type=${type}`} className={!status ? "filter active" : "filter"}>
           全部
+          <span className="filter-count">{all.length}</span>
         </Link>
         {STATUSES.map((s) => (
           <Link
             key={s.value}
-            href={qs({ type, status: s.value })}
+            href={`/?type=${type}&status=${s.value}`}
             className={status === s.value ? "filter active" : "filter"}
           >
             {statusLabel(s.value, type)}
+            <span className="filter-count">{statusCount(s.value)}</span>
           </Link>
         ))}
       </div>
@@ -82,10 +106,4 @@ export default async function Home({
       )}
     </>
   );
-}
-
-function qs(parts: { type: string; status?: string }): string {
-  const p = new URLSearchParams({ type: parts.type });
-  if (parts.status) p.set("status", parts.status);
-  return `/?${p.toString()}`;
 }
