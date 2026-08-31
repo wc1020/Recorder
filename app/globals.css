@@ -131,6 +131,23 @@ a:hover {
   border-color: var(--accent);
 }
 
+.card-perfect,
+.card-perfect:hover {
+  border: 3px solid transparent;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    conic-gradient(
+      #ff3b5c,
+      #ffb703,
+      #8ac926,
+      #3a86ff,
+      #9b5de5,
+      #ff3b5c
+    )
+    border-box;
+  box-shadow: 0 0 10px rgba(255, 80, 160, 0.35);
+}
+
 .card-link {
   display: flex;
   flex-direction: column;
@@ -320,6 +337,21 @@ a:hover {
 .btn:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+.btn-icon {
+  padding: 8px;
+  line-height: 0;
+}
+
+.icon-spin {
+  animation: icon-spin 0.8s linear infinite;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .search-row {

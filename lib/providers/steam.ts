@@ -1,5 +1,6 @@
 import type { ItemSnapshot, Provider, SearchHit } from "./types";
 import { ProviderNotConfiguredError, requireEnv } from "./types";
+import { loadLocalEnv } from "@/lib/load-local-env";
 import {
   loadSteamBackup,
   saveSteamPerfectBackup,
@@ -305,6 +306,15 @@ function omitPrivateGames<T extends { appid: number }>(
   return games.filter((g) => !privateIds.has(g.appid));
 }
 
+function omitOwnedFromFamily<T extends { appid: number }>(
+  family: T[],
+  owned: { appid: number }[],
+): T[] {
+  if (owned.length === 0) return family;
+  const ownedIds = new Set(owned.map((g) => g.appid));
+  return family.filter((g) => !ownedIds.has(g.appid));
+}
+
 function parsePrivateAppIds(raw: unknown): Set<number> {
   const ids = new Set<number>();
   const add = (value: unknown) => {
@@ -384,7 +394,7 @@ type PlaytimeEntry = {
   seconds_played?: number;
 };
 
-let cachedFamilyAccess: { token: string; exp: number } | null = null;
+let cachedFamilyAccess: { token: string; exp: number; source: string } | null = null;
 
 function normalizeSteamToken(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
@@ -475,22 +485,28 @@ async function refreshAccessToken(refreshToken: string, steamid: string): Promis
 }
 
 async function getFamilyAccessToken(steamid: string): Promise<FamilyAuth> {
+  loadLocalEnv({ reload: true });
   const access = normalizeSteamToken(process.env.STEAM_ACCESS_TOKEN);
   const refresh = normalizeSteamToken(process.env.STEAM_REFRESH_TOKEN);
   if (!access && !refresh) return { token: null, error: null };
 
-  if (cachedFamilyAccess && tokenStillGood(cachedFamilyAccess.token)) {
+  const source = `${access}\n${refresh}`;
+  if (
+    cachedFamilyAccess &&
+    cachedFamilyAccess.source === source &&
+    tokenStillGood(cachedFamilyAccess.token)
+  ) {
     return { token: cachedFamilyAccess.token, error: null };
   }
 
   if (refresh) {
     try {
       const token = await refreshAccessToken(refresh, steamid);
-      cachedFamilyAccess = { token, exp: jwtExp(token) ?? 0 };
+      cachedFamilyAccess = { token, exp: jwtExp(token) ?? 0, source };
       return { token, error: null };
     } catch (err) {
       if (access && tokenStillGood(access)) {
-        cachedFamilyAccess = { token: access, exp: jwtExp(access) ?? 0 };
+        cachedFamilyAccess = { token: access, exp: jwtExp(access) ?? 0, source };
         return { token: access, error: null };
       }
       return {
@@ -684,6 +700,18 @@ function playedKey(games: SteamGameRow[]): string {
     .join(",");
 }
 
+function isProgressPerfect(game: SteamGameRow): boolean {
+  return (
+    game.achTotal != null &&
+    game.achTotal > 0 &&
+    game.achUnlocked === game.achTotal
+  );
+}
+
+function hasAchievementProgress(games: SteamGameRow[]): boolean {
+  return games.some((g) => g.achTotal != null);
+}
+
 function sortPerfect(
   games: SteamGameRow[],
   completedAt: Map<number, number>,
@@ -697,8 +725,28 @@ function sortPerfect(
 }
 
 export function cachedPerfectCount(played: SteamGameRow[]): number | null {
+  if (hasAchievementProgress(played)) {
+    return played.filter(isProgressPerfect).length;
+  }
   if (!perfectCache || perfectCache.key !== playedKey(played)) return null;
   return perfectCache.items.length;
+}
+
+function finishPerfectList(
+  games: SteamGameRow[],
+  key: string,
+  completedAt: Map<number, number>,
+): SteamGameRow[] {
+  const results = sortPerfect(games, completedAt);
+  perfectCache = {
+    key,
+    items: results.map((g) => ({
+      appid: g.appid,
+      completedAt: completedAt.get(g.appid) ?? 0,
+    })),
+    at: Date.now(),
+  };
+  return results;
 }
 
 export async function filterPerfectGames(
@@ -708,6 +756,45 @@ export async function filterPerfectGames(
   const unique = mergeLibraryGames(games);
   const byId = new Map(unique.map((g) => [g.appid, g]));
   const key = playedKey(unique);
+  const fromProgress = unique.filter(isProgressPerfect);
+
+  if (hasAchievementProgress(unique)) {
+    const backup = opts?.fromCache ? await loadSteamBackup() : null;
+    const completedAt = new Map(
+      (backup?.perfect ?? perfectCache?.items ?? []).map((i) => [i.appid, i.completedAt]),
+    );
+    if (opts?.fromCache) {
+      return finishPerfectList(fromProgress, key, completedAt);
+    }
+    if (
+      perfectCache &&
+      perfectCache.key === key &&
+      Date.now() - perfectCache.at < 15 * 60 * 1000 &&
+      fromProgress.every((g) => perfectCache?.items.some((i) => i.appid === g.appid))
+    ) {
+      return finishPerfectList(fromProgress, key, completedAt);
+    }
+    try {
+      const steamid = await resolveSteamId();
+      const queue = fromProgress.slice();
+      const workers = Array.from({ length: Math.min(6, queue.length) }, async () => {
+        while (queue.length) {
+          const game = queue.shift();
+          if (!game) return;
+          const at = await perfectCompletedAt(steamid, game.appid);
+          if (at != null) completedAt.set(game.appid, at);
+        }
+      });
+      await Promise.all(workers);
+      const results = finishPerfectList(fromProgress, key, completedAt);
+      await saveSteamPerfectBackup(perfectCache?.items ?? []).catch(() => {});
+      return results;
+    } catch (err) {
+      if (fromProgress.length > 0) return finishPerfectList(fromProgress, key, completedAt);
+      throw err;
+    }
+  }
+
   if (opts?.fromCache) {
     return perfectFromBackup(byId, key);
   }
@@ -737,16 +824,12 @@ export async function filterPerfectGames(
       }
     });
     await Promise.all(workers);
-    const results = sortPerfect(
+    const results = finishPerfectList(
       unique.filter((g) => completedAt.has(g.appid)),
+      key,
       completedAt,
     );
-    perfectCache = {
-      key,
-      items: results.map((g) => ({ appid: g.appid, completedAt: completedAt.get(g.appid) ?? 0 })),
-      at: Date.now(),
-    };
-    await saveSteamPerfectBackup(perfectCache.items).catch(() => {});
+    await saveSteamPerfectBackup(perfectCache?.items ?? []).catch(() => {});
     return results;
   } catch (err) {
     const fallback = await perfectFromBackup(byId, key);
@@ -805,8 +888,10 @@ function playerFromBackup(
   const hidden = new Set(p.privateAppIds ?? []);
   const recentlyPlayed = omitPrivateGames(p.recentlyPlayed, hidden);
   const owned = omitPrivateGames(p.owned, hidden);
-  const family = omitPrivateGames(p.family, hidden);
+  const family = omitOwnedFromFamily(omitPrivateGames(p.family, hidden), owned);
   const library = mergeLibraryGames(owned, recentlyPlayed, family);
+  const familyPlaytimeMin = family.reduce((sum, g) => sum + g.playtimeForeverMin, 0);
+  const ownedPlaytimeMin = owned.reduce((sum, g) => sum + g.playtimeForeverMin, 0);
   if (backup.perfect) {
     perfectCache = {
       key: playedKey(library),
@@ -819,6 +904,8 @@ function playerFromBackup(
     recentlyPlayed,
     owned,
     family,
+    familyPlaytimeMin,
+    totalPlaytimeMin: ownedPlaytimeMin + familyPlaytimeMin + (p.familyRecentPlaytimeMin ?? 0),
     privateAppIds: [...hidden],
     fromCache: true,
     cachedAt: backup.savedAt,
@@ -886,7 +973,11 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     privateIds,
   );
 
-  const familySource = omitPrivateGames(familyLib.games, privateIds);
+  const ownedIds = new Set(ownedGames.map((g) => g.appid));
+  const familySource = omitOwnedFromFamily(
+    omitPrivateGames(familyLib.games, privateIds),
+    ownedGames,
+  );
   const extraIds = [
     ...recentGames.map((g) => g.appid),
     ...ownedGames.map((g) => g.appid),
@@ -915,8 +1006,17 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     );
   };
 
-  const ownedIds = new Set(ownedGames.map((g) => g.appid));
   const recentById = new Map(recentGames.map((g) => [g.appid, g]));
+  const owned = ownedGames.map((g) => {
+    const row = toRow(g);
+    const recent = recentById.get(g.appid);
+    if (!recent) return row;
+    return {
+      ...row,
+      playtime2WeeksMin: Math.max(row.playtime2WeeksMin, recent.playtime_2weeks ?? 0),
+      playtimeForeverMin: Math.max(row.playtimeForeverMin, recent.playtime_forever ?? 0),
+    };
+  });
   const family = familySource.map((g) => {
     const recent = recentById.get(g.appid);
     return withProgress(
@@ -946,7 +1046,7 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     familyPlaytimeMin,
     familyError: familyLib.error,
     recentlyPlayed: recentGames.map(toRow),
-    owned: ownedGames.map(toRow),
+    owned,
     family,
     privateAppIds: [...privateIds],
     fromCache: false,

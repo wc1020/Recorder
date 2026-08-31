@@ -7,14 +7,14 @@ import {
   cachedPerfectCount,
   filterPerfectGames,
   getSteamPlayerPage,
-  mergeLibraryGames,
-  mergePlayedGames,
   type SteamGameRow,
 } from "@/lib/providers/steam";
+import { buildGameViews } from "@/lib/steam-views";
 import { formatBackupTime, formatFenLabel, formatHours, formatYuan } from "@/lib/steam-format";
 import { ProviderNotConfiguredError } from "@/lib/providers";
 import { formatRating, statusLabel } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { loadLocalEnv } from "@/lib/load-local-env";
 import { listPaidFen } from "@/lib/steam-paid";
 
 export const GAME_VIEWS = [
@@ -40,33 +40,26 @@ export async function SteamPanel({
   live?: boolean;
 }) {
   const current = parseGameView(view);
+  loadLocalEnv({ reload: true });
   try {
     const data = await getSteamPlayerPage({ live });
-    const played = mergePlayedGames(data.owned, [
-      ...data.recentlyPlayed,
-      ...data.family,
-    ]);
-    const library = mergeLibraryGames(
-      data.owned,
-      data.recentlyPlayed,
-      data.family,
-    );
-    const paidByApp = await listPaidFen(library.map((g) => g.appid));
+    const views = buildGameViews(data);
+    const paidByApp = await listPaidFen(views.library.map((g) => g.appid));
     const hideAppIds = [
-      ...data.owned.map((g) => g.appid),
-      ...data.family.map((g) => g.appid),
+      ...views.owned.map((g) => g.appid),
+      ...views.family.map((g) => g.appid),
     ];
     const wantItems = await loadWantItems(hideAppIds);
     const perfect =
       current === "perfect"
-        ? await filterPerfectGames(library, { fromCache: data.fromCache })
+        ? await filterPerfectGames(views.library, { fromCache: data.fromCache })
         : [];
     const counts: Record<GameView, number | null> = {
-      recent: data.recentlyPlayed.length,
-      played: played.length,
-      perfect: current === "perfect" ? perfect.length : cachedPerfectCount(library),
-      owned: data.owned.length,
-      family: data.family.length,
+      recent: views.recent.length,
+      played: views.played.length,
+      perfect: current === "perfect" ? perfect.length : cachedPerfectCount(views.library),
+      owned: views.owned.length,
+      family: views.family.length,
       want: wantItems.length,
     };
 
@@ -88,9 +81,9 @@ export async function SteamPanel({
             <div>
               <h2 className="steam-name">{data.profile.name}</h2>
               <p className="steam-stats">
-                总时长 {formatHours(data.totalPlaytimeMin)} · 库存 {data.owned.length} 款
-                {data.family.length > 0
-                  ? ` · 家庭库 ${data.family.length} 款 ${formatHours(data.familyPlaytimeMin)}`
+                总时长 {formatHours(data.totalPlaytimeMin)} · 库存 {views.owned.length} 款
+                {views.family.length > 0
+                  ? ` · 家庭库 ${views.family.length} 款 ${formatHours(data.familyPlaytimeMin)}`
                   : data.familyRecentPlaytimeMin > 0
                     ? ` · 含家庭库近两周 ${formatHours(data.familyRecentPlaytimeMin)}`
                     : ""}
@@ -133,28 +126,32 @@ export async function SteamPanel({
 
         {current === "recent" ? (
           <SteamList
-            games={data.recentlyPlayed}
+            games={views.recent}
             paidByApp={paidByApp}
-            empty="近两周没有记录。资料里的游戏详情需要公开。"
+            empty="近两周没有在库存或家庭库里的游玩记录。"
           />
         ) : null}
         {current === "played" ? (
-          <SteamList games={played} paidByApp={paidByApp} empty="还没有记到游玩时长。" />
+          <SteamList
+            games={views.played}
+            paidByApp={paidByApp}
+            empty="库存和家庭库里还没有游玩时长。"
+          />
         ) : null}
         {current === "perfect" ? (
           <SteamList
             games={perfect}
             paidByApp={paidByApp}
-            empty="还没有完美通关的游戏。游戏需要有 Steam 成就，且成就已全部解锁。"
+            empty="还没有完美通关的游戏。库存和家庭库里成就已全部解锁的都会列在这里。"
           />
         ) : null}
         {current === "owned" ? (
-          <OwnedList games={data.owned} paidByApp={paidByApp} />
+          <OwnedList games={views.owned} paidByApp={paidByApp} />
         ) : null}
         {current === "family" ? (
           <>
-            <FamilyHint error={data.familyError} loaded={data.family.length > 0} />
-            <SteamList games={data.family} paidByApp={paidByApp} empty={familyEmpty(data)} />
+            <FamilyHint error={data.familyError} loaded={views.family.length > 0} />
+            <SteamList games={views.family} paidByApp={paidByApp} empty={familyEmpty(data)} />
           </>
         ) : null}
         {current === "want" ? <WantList items={wantItems} /> : null}
@@ -205,8 +202,9 @@ function FamilyHint({ error, loaded }: { error: string | null; loaded: boolean }
         这页
       </a>
       ，把 <code>webapi_token</code> 填进 <code>local/.env</code> 的{" "}
-      <code>STEAM_ACCESS_TOKEN</code>（大约一天过期）。有客户端{" "}
-      <code>refresh_token</code> 就填 <code>STEAM_REFRESH_TOKEN</code>，本站会自动换新。
+      <code>STEAM_ACCESS_TOKEN</code>（大约一天过期）。改完后要点「刷新」，切
+      tab 仍用本地备份。有客户端 <code>refresh_token</code> 就填{" "}
+      <code>STEAM_REFRESH_TOKEN</code>，本站会自动换新。
     </p>
   );
 }
@@ -222,6 +220,14 @@ function familyEmpty(data: {
   return "家庭库是空的。";
 }
 
+function isCardPerfect(game: SteamGameRow): boolean {
+  return (
+    game.achTotal != null &&
+    game.achTotal > 0 &&
+    game.achUnlocked === game.achTotal
+  );
+}
+
 function SteamList({
   games,
   empty,
@@ -235,7 +241,11 @@ function SteamList({
   return (
     <div className="grid">
       {games.map((game) => (
-        <Link key={game.appid} href={`/steam/${game.appid}`} className="card">
+        <Link
+          key={game.appid}
+          href={`/steam/${game.appid}`}
+          className={isCardPerfect(game) ? "card card-perfect" : "card"}
+        >
           <Cover url={game.coverUrl} title={game.name} />
           <div className="card-body">
             <p className="card-title" title={game.name}>

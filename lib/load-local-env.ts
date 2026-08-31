@@ -4,8 +4,8 @@ import path from "path";
 let loaded = false;
 
 /** 优先读 local/.env，换电脑时整夹拷走即可。 */
-export function loadLocalEnv() {
-  if (loaded) return;
+export function loadLocalEnv(opts?: { reload?: boolean }) {
+  if (loaded && !opts?.reload) return;
   loaded = true;
 
   const file = path.join(process.cwd(), "local", ".env");
@@ -24,7 +24,7 @@ export function loadLocalEnv() {
     ) {
       value = value.slice(1, -1);
     }
-    if (process.env[key] === undefined) {
+    if (opts?.reload || process.env[key] === undefined) {
       process.env[key] = value;
     }
   }

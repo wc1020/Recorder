@@ -17,4 +17,4 @@
 | `dev.db` | 你的电影、书、游戏记录 |
 | `steam-cache.json` | Steam 列表备份 |
 
-第一次从零开始、没有这只文件夹时：把仓库里的 `.env.example` 复制为 `local/.env`，填上 Key，再执行 `npx prisma migrate dev`。
+第一次从零开始、没有这只文件夹时：按仓库里的 [docs/DEPLOY.md](../docs/DEPLOY.md) 做。或把 `.env.example` 复制为 `local/.env`，填上 Key，再执行 `npx prisma migrate deploy`。
