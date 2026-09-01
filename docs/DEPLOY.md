@@ -1,8 +1,36 @@
 # 在自己电脑上跑 projectM
 
-这是一份给**第一次拿到仓库**的人看的教程。做完后，浏览器打开本机地址就能用：搜电影 / 电视剧 / 图书 / 游戏、入库、打分、写短评。数据只存在你这台电脑上，不经过别人的服务器。
+这是一份给**第一次拿到仓库**的人看的教程。做完后，浏览器打开本机地址就能用。数据只存在你这台电脑上。
+
+产品做什么、各页有哪些功能：见 [README.md](../README.md)。
 
 整站是单用户、本地运行。不需要公网、不需要注册本站账号。
+
+已经会用终端、只想抄命令的，看下面「熟手」。第一次装 Node 的从第 0 步顺着做。
+
+---
+
+## 熟手
+
+```bash
+npm install
+```
+
+把 `.env.example` 复制为 `local/.env` 并填 Key（没有 `local` 就先建）：
+
+- Windows：`New-Item -ItemType Directory -Force -Path local; Copy-Item .env.example local\.env`
+- macOS / Linux：`mkdir -p local && cp .env.example local/.env`
+
+```bash
+npx prisma migrate deploy
+npm run dev
+```
+
+浏览器打开 http://localhost:3000
+
+换电脑：`git pull`，把另一台的 `local/` 整个放到工程根目录（和 `package.json` 同级），再 `npm install`、`npm run dev`。`local/` 不进 git，里面是 Key、数据库、Steam 备份。
+
+各项 Key 的申请方式见第 3 节。
 
 ---
 

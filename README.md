@@ -1,40 +1,75 @@
 # projectM
 
-私人豆瓣：记录看过的电影、电视剧、读过的书、玩过的游戏。
+> **本项目完全由 AI 生成。**
 
-**第一次在自己电脑上跑：** 按 [docs/DEPLOY.md](docs/DEPLOY.md) 从安装 Node.js 做到打开网页。下面是已经会用终端的人看的短步骤。
+自己用的媒体记录站。电影、电视剧、图书、游戏：从正规资料库搜到条目，存一份快照，然后打分、写短评、标状态。
 
-## 运行
+单用户，跑在你自己的机器上。体验接近豆瓣的「想看 / 在看 / 看过」，数据不来自豆瓣，也不爬小黑盒。
 
-```bash
-npm install
-```
+核心就这一圈：**搜 → 入库 → 自己记。** 一种作品一张 `Item`，你的记录一张 `Entry`。新类型只加 Provider，不另起一套表。
 
-把 `.env.example` 复制为 `local/.env` 并填 Key（没有 `local` 文件夹就先建一个）：
+怎么在本机跑起来、Key 怎么填、换电脑怎么搬数据：见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
-- Windows：`New-Item -ItemType Directory -Force -Path local; Copy-Item .env.example local\.env`
-- macOS / Linux：`mkdir -p local && cp .env.example local/.env`
+## 功能
 
-换电脑：`git pull`，把另一台的 `local` 文件夹整个放到工程根目录（和 `package.json` 同级），再 `npm install`、`npm run dev`。`local` 不进 git，里面是 Key、数据库、Steam 备份。
+侧栏五块：首页、电影、电视剧、图书、游戏。顶栏是返回、站名、当前类型的子标签，右边放大镜进搜索。
 
-在 `local/.env` 里填入对应 API Key（没有 Key 的类型搜索时会提示未配置，不会假装成功）：
+没有填某类 API Key 时，对应搜索会写明「未配置」，不会假装成功。
 
-- `TMDB_API_KEY` — 电影 / 电视剧
-- `GOOGLE_BOOKS_API_KEY` — 图书
-- `STEAM_API_KEY` — 游戏搜索（[申请](https://steamcommunity.com/dev/apikey)，Domain 可填 `localhost`）
-- `STEAM_STEAMID` — 游戏 Tab 拉公开资料 / 库存 / 最近游玩（17 位 SteamID64，或自定义主页名）
-- `STEAM_ACCESS_TOKEN` — 可选，家庭库列表和时长。浏览器登录 [Steam 商店](https://store.steampowered.com/) 后打开 [这页](https://store.steampowered.com/pointssummary/ajaxgetasyncconfig)，把 `webapi_token` 贴进来。大约一天过期，过期再复制一次。
-- `STEAM_REFRESH_TOKEN` — 可选。Steam 客户端 / 令牌里的 refresh_token（有效期约一年）。填了之后本站会调用 `GenerateAccessTokenForApp` 自动换新的 access_token，不必每天更新。商店页复制的 `webapi_token` 不是 refresh_token，请不要填在这一项。
+### 搜索与记录
 
-```bash
-npx prisma migrate deploy
-npm run dev
-```
+顶栏放大镜打开 `/search`：选类型、输入关键词，从资料库搜，看中了就加入。已入库的会标出来。
 
-浏览器打开 http://localhost:3000
+加入之后可以改状态、打 0–10 分、写短评、填日期。电影、电视剧、图书共用同一套详情页。
 
-## 说明
+| 类型 | 资料 | 状态文案 |
+|------|------|----------|
+| 电影 / 电视剧 | TMDB（中文名、海报、年份） | 想看 / 在看 / 看过 / 弃了 |
+| 图书 | Google Books（书名或 ISBN） | 想读 / 在读 / 读过 / 弃了 |
+| 游戏 | Steam | 想玩另记；玩过的主要看 Steam 时长和库存 |
 
-- 数据：TMDB / Google Books / Steam，不爬豆瓣、不爬小黑盒
-- Key 只放环境变量，只在服务端请求
-- 大纲：`docs/PLAN.md`
+### 电影、电视剧、图书
+
+列表按子标签筛「全部」和四种状态。能搜、能加入、能打分写评。标签、片单、排序、手动添加还没有。
+
+电视剧和电影共用一把 TMDB Key，暂不做季 / 集进度。图书文案是「图书」，不是「书」。
+
+首页目前是占位。
+
+### 游戏
+
+游戏页接的是你的 Steam 号，不只是搜一条加一条。
+
+![游戏页](docs/screenshots/game.jpg)
+
+资料卡：头像、名字、在线状态（在线 / 离线 / 游玩某某中只显示一个）、公开资料链接；下面是总游玩时长和库存价值（已付 / 原价）。迷你资料背景铺在卡上。卡右下角刷新只更新头像、状态、背景和等级，不拉库存。
+
+资料卡右边：Steam 等级和经验条、库存 / 家庭库 / 完美通关 / 想玩的数量、近两周在玩的封面（最多五张）。右上角 **Update DB** 才向 Steam 拉整库并写入本地备份；右下角可以按名称筛当前列表。
+
+子标签：
+
+| 标签 | 内容 |
+|------|------|
+| 最近游玩 | 近两周有时长，且在账号库或家庭库 |
+| 全部游玩 | 有时长的库存 / 家庭库游戏 |
+| 完美通关 | 成就全部解锁的 |
+| 库存游戏 | 账号库 |
+| 家庭库 | 家庭库里有、账号库没有的 |
+| 想玩 | 本地想玩，且还不在库里的 |
+
+列表卡片统一：封面、标题、总时长、近两周、成就、购入价 / 原价。全成就有彩色边框。隐藏和私人游戏不出现在列表里。
+
+点进详情可以看到时长、评价、简介、商店链接、DLC（可分别填购入价）、成就。购入合计按本体 + 已购 DLC 算。
+
+![游戏详情](docs/screenshots/game-detail.png)
+
+第一次打开游戏页会请求 Steam，结果写进 `local/steam-cache.json`。之后切 tab 用这份备份；Steam 连不上时也用备份。改了 token 要再点 Update DB。
+
+## 原则
+
+- 只走 TMDB、Google Books、Steam；不爬、不抓包、不走非官方代理
+- 不镜像对方整库，只存你选中的快照和自己的记录
+- 不做账号、社交、推荐
+- 代码保持直接：能一个模块说清的不要拆多层
+
+进度和边界在 [docs/PLAN.md](docs/PLAN.md)。
