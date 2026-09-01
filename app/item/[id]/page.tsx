@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { saveEntry } from "../../actions";
-import { BackLink } from "../../back-link";
 import { Cover } from "../../cover";
 import { STATUSES, statusLabel, typeLabel } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -29,9 +28,6 @@ export default async function ItemPage({
 
   return (
     <>
-      <p>
-        <BackLink href={`/?type=${item.type}`}>← 返回</BackLink>
-      </p>
       <div className="detail">
       <Cover url={item.coverUrl} title={item.title} size="lg" />
       <div className="detail-info">

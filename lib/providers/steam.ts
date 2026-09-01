@@ -5,6 +5,7 @@ import {
   loadSteamBackup,
   saveSteamPerfectBackup,
   saveSteamPlayerBackup,
+  saveSteamProfileBackup,
 } from "@/lib/steam-cache";
 
 export { formatHours, formatPlaytime, formatYuan } from "@/lib/steam-format";
@@ -56,6 +57,17 @@ export type SteamProfile = {
   name: string;
   profileUrl: string;
   avatarUrl: string | null;
+  miniBackgroundUrl: string | null;
+  miniBackgroundMovieUrl: string | null;
+  presence: "offline" | "online" | "ingame";
+  playingName: string | null;
+};
+
+export type SteamXp = {
+  level: number;
+  xp: number;
+  xpToNext: number;
+  xpCurrentLevel: number;
 };
 
 export type SteamDlcPrice = {
@@ -88,6 +100,7 @@ export type SteamGameRow = {
 
 export type SteamPlayerPage = {
   profile: SteamProfile;
+  xp: SteamXp | null;
   totalPlaytimeMin: number;
   familyRecentPlaytimeMin: number;
   familyPlaytimeMin: number;
@@ -567,6 +580,64 @@ async function steamQuery(path: string, params: Record<string, string>): Promise
   }
   const res = await steamFetch(url);
   return res.json();
+}
+
+function communityImageUrl(file: string | undefined): string | null {
+  if (!file) return null;
+  if (/^https?:\/\//i.test(file)) return file;
+  return `https://cdn.akamai.steamstatic.com/steamcommunity/public/images/${file.replace(/^\//, "")}`;
+}
+
+type EquippedCosmetic = {
+  image_small?: string;
+  image_large?: string;
+  movie_webm?: string;
+  movie_mp4?: string;
+};
+
+async function fetchSteamXp(steamid: string): Promise<SteamXp | null> {
+  try {
+    const raw = await steamQuery("IPlayerService/GetBadges/v1/", { steamid });
+    const r = (
+      raw as {
+        response?: {
+          player_xp?: number;
+          player_level?: number;
+          player_xp_needed_to_level_up?: number;
+          player_xp_needed_current_level?: number;
+        };
+      }
+    ).response;
+    if (r?.player_level == null) return null;
+    return {
+      level: r.player_level,
+      xp: r.player_xp ?? 0,
+      xpToNext: r.player_xp_needed_to_level_up ?? 0,
+      xpCurrentLevel: r.player_xp_needed_current_level ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchMiniProfileBackground(steamid: string): Promise<{
+  imageUrl: string | null;
+  movieUrl: string | null;
+}> {
+  try {
+    const raw = await steamQuery("IPlayerService/GetProfileItemsEquipped/v1/", { steamid });
+    const item = (
+      raw as { response?: { mini_profile_background?: EquippedCosmetic } }
+    ).response?.mini_profile_background;
+    if (!item) return { imageUrl: null, movieUrl: null };
+    const apng = [item.image_small, item.image_large].find((f) => f && /\.apng$/i.test(f));
+    return {
+      imageUrl: communityImageUrl(apng || item.image_large || item.image_small),
+      movieUrl: communityImageUrl(item.movie_webm || item.movie_mp4),
+    };
+  } catch {
+    return { imageUrl: null, movieUrl: null };
+  }
 }
 
 function toHit(item: SteamItem): SearchHit | null {
@@ -1135,10 +1206,79 @@ function playerFromBackup(
       : p.familyError,
     totalPlaytimeMin: ownedPlaytimeMin + familyPlaytimeMin + (p.familyRecentPlaytimeMin ?? 0),
     privateAppIds: [...hidden],
+    xp: p.xp ?? null,
     fromCache: true,
     cachedAt: backup.savedAt,
     cacheReason,
   };
+}
+
+type SummaryPlayer = {
+  personaname?: string;
+  profileurl?: string;
+  avatarfull?: string;
+  personastate?: number;
+  gameid?: string;
+  gameextrainfo?: string;
+};
+
+function playingAppId(gameid?: string): number | null {
+  const n = Number.parseInt(gameid ?? "", 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function profileFromSummary(
+  steamid: string,
+  player: SummaryPlayer & { personaname: string },
+  miniBg: { imageUrl: string | null; movieUrl: string | null },
+  playingName: string | null,
+): SteamProfile {
+  const name = playingName?.trim() || null;
+  return {
+    name: player.personaname,
+    profileUrl: player.profileurl || `https://steamcommunity.com/profiles/${steamid}`,
+    avatarUrl: player.avatarfull || null,
+    miniBackgroundUrl: miniBg.imageUrl,
+    miniBackgroundMovieUrl: miniBg.movieUrl,
+    presence: name ? "ingame" : (player.personastate ?? 0) > 0 ? "online" : "offline",
+    playingName: name,
+  };
+}
+
+/** 只拉头像 / 在线状态 / 迷你背景，不碰库存列表。 */
+export async function refreshSteamProfileLive(): Promise<void> {
+  const backup = await loadSteamBackup();
+  if (!backup) {
+    throw new Error("还没有本地备份，请先用页面右侧刷新拉一次库存。");
+  }
+  const steamid = await resolveSteamId();
+  const [summaryRaw, miniBg, xp] = await Promise.all([
+    steamQuery("ISteamUser/GetPlayerSummaries/v2/", { steamids: steamid }),
+    fetchMiniProfileBackground(steamid),
+    fetchSteamXp(steamid),
+  ]);
+  const player = (
+    summaryRaw as { response?: { players?: SummaryPlayer[] } }
+  ).response?.players?.[0];
+  if (!player?.personaname) {
+    throw new Error("找不到公开资料。检查 STEAM_STEAMID，或把资料设为公开。");
+  }
+  const playingId = playingAppId(player.gameid);
+  let playingName = player.gameextrainfo || null;
+  if (playingId) {
+    const hit = [
+      ...backup.player.owned,
+      ...backup.player.family,
+      ...backup.player.recentlyPlayed,
+    ].find((g) => g.appid === playingId);
+    if (hit?.name) {
+      playingName = hit.name;
+    } else {
+      const extras = await fetchStoreExtras([playingId]);
+      playingName = extras.get(playingId)?.name || playingName;
+    }
+  }
+  await saveSteamProfileBackup(profileFromSummary(steamid, player, miniBg, playingName), xp);
 }
 
 export async function getSteamPlayerPage(opts?: {
@@ -1146,7 +1286,17 @@ export async function getSteamPlayerPage(opts?: {
 }): Promise<SteamPlayerPage> {
   const backup = await loadSteamBackup();
   if (!opts?.live && backup) {
-    return playerFromBackup(backup, "tab");
+    const page = playerFromBackup(backup, "tab");
+    if (!page.xp) {
+      try {
+        const steamid = await resolveSteamId();
+        page.xp = await fetchSteamXp(steamid);
+        await saveSteamProfileBackup(page.profile, page.xp);
+      } catch {
+        /* 等级没有也不挡列表 */
+      }
+    }
+    return page;
   }
   try {
     const data = await fetchSteamPlayerLive();
@@ -1160,7 +1310,7 @@ export async function getSteamPlayerPage(opts?: {
 
 async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
   const steamid = await resolveSteamId();
-  const [summaryRaw, ownedRaw, recentRaw, familyLib, privateIds] = await Promise.all([
+  const [summaryRaw, ownedRaw, recentRaw, familyLib, privateIds, miniBg, xp] = await Promise.all([
     steamQuery("ISteamUser/GetPlayerSummaries/v2/", { steamids: steamid }),
     steamQuery("IPlayerService/GetOwnedGames/v1/", {
       steamid,
@@ -1174,18 +1324,12 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     }),
     fetchFamilyLibrary(steamid),
     fetchPrivateAppIds(steamid),
+    fetchMiniProfileBackground(steamid),
+    fetchSteamXp(steamid),
   ]);
 
   const player = (
-    summaryRaw as {
-      response?: {
-        players?: {
-          personaname?: string;
-          profileurl?: string;
-          avatarfull?: string;
-        }[];
-      };
-    }
+    summaryRaw as { response?: { players?: SummaryPlayer[] } }
   ).response?.players?.[0];
   if (!player?.personaname) {
     throw new Error("找不到公开资料。检查 STEAM_STEAMID，或把资料设为公开。");
@@ -1207,10 +1351,13 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     omitPrivateGames(familyLib.games, privateIds),
     ownedGames,
   );
+  const playingId = playingAppId(player.gameid);
+
   const extraIds = [
     ...recentGames.map((g) => g.appid),
     ...ownedGames.map((g) => g.appid),
     ...familySource.map((g) => g.appid),
+    ...(playingId ? [playingId] : []),
   ];
   const [extras, progress, dlcByParent] = await Promise.all([
     fetchStoreExtras(extraIds),
@@ -1268,11 +1415,13 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
   const ownedPlaytimeMin = ownedGames.reduce((sum, g) => sum + (g.playtime_forever ?? 0), 0);
 
   return {
-    profile: {
-      name: player.personaname,
-      profileUrl: player.profileurl || `https://steamcommunity.com/profiles/${steamid}`,
-      avatarUrl: player.avatarfull || null,
-    },
+    profile: profileFromSummary(
+      steamid,
+      player,
+      miniBg,
+      (playingId ? extras.get(playingId)?.name : null) || player.gameextrainfo || null,
+    ),
+    xp,
     totalPlaytimeMin: ownedPlaytimeMin + familyPlaytimeMin + familyRecentPlaytimeMin,
     familyRecentPlaytimeMin,
     familyPlaytimeMin,

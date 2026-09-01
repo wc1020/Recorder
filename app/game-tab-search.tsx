@@ -2,7 +2,9 @@
 
 import {
   Children,
+  createContext,
   isValidElement,
+  useContext,
   useEffect,
   useState,
   type ReactElement,
@@ -18,14 +20,17 @@ function qKey(storageKey: string): string {
   return `pm-game-q:${storageKey}`;
 }
 
-export function GameTabSearch({
+const GameFilterContext = createContext<{
+  q: string;
+  update: (next: string) => void;
+} | null>(null);
+
+export function GameFilterProvider({
   storageKey,
   children,
-  emptyFilter = "没有匹配的游戏。",
 }: {
   storageKey: string;
   children: ReactNode;
-  emptyFilter?: string;
 }) {
   const [q, setQ] = useState("");
   useEffect(() => {
@@ -39,28 +44,48 @@ export function GameTabSearch({
     else sessionStorage.removeItem(key);
   }
 
+  return (
+    <GameFilterContext.Provider value={{ q, update }}>
+      {children}
+    </GameFilterContext.Provider>
+  );
+}
+
+function useGameFilter() {
+  const ctx = useContext(GameFilterContext);
+  if (!ctx) throw new Error("GameFilterProvider missing");
+  return ctx;
+}
+
+export function GameFilterInput() {
+  const { q, update } = useGameFilter();
+  return (
+    <form className="search-form game-filter-inline" onSubmit={(e) => e.preventDefault()}>
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => update(e.target.value)}
+        placeholder="搜索当前列表"
+        aria-label="搜索当前列表"
+      />
+    </form>
+  );
+}
+
+export function GameTabSearch({
+  children,
+  emptyFilter = "没有匹配的游戏。",
+}: {
+  children: ReactNode;
+  emptyFilter?: string;
+}) {
+  const { q } = useGameFilter();
   const needle = q.trim().toLowerCase();
   const items = Children.toArray(children).filter(isValidElement);
   const shown = needle
     ? items.filter((child) => dataName(child).includes(needle))
     : items;
 
-  return (
-    <>
-      <form className="search-form" onSubmit={(e) => e.preventDefault()}>
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => update(e.target.value)}
-          placeholder="搜索当前列表"
-          aria-label="搜索当前列表"
-        />
-      </form>
-      {shown.length === 0 ? (
-        <p className="empty">{emptyFilter}</p>
-      ) : (
-        <div className="grid">{shown}</div>
-      )}
-    </>
-  );
+  if (shown.length === 0) return <p className="empty">{emptyFilter}</p>;
+  return <div className="grid">{shown}</div>;
 }

@@ -3,11 +3,12 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { KeepScroll } from "./keep-scroll";
 import { SiteHeader } from "./site-header";
+import { TypeNav } from "./type-nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ProjectM",
-  description: "个人媒体记录：电影、书、游戏",
+  description: "个人媒体记录：电影、电视剧、图书、游戏",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -17,8 +18,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Suspense fallback={null}>
           <KeepScroll />
         </Suspense>
-        <SiteHeader />
-        <main className="site-main">{children}</main>
+        <div className="site-app">
+          <Suspense fallback={<header className="site-header" />}>
+            <SiteHeader />
+          </Suspense>
+          <div className="site-body">
+            <Suspense fallback={<nav className="site-nav" aria-label="类型" />}>
+              <TypeNav />
+            </Suspense>
+            <main className="site-main">{children}</main>
+          </div>
+        </div>
       </body>
     </html>
   );

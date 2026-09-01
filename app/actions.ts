@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { isMediaType, isStatus } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { getProvider, ProviderNotConfiguredError } from "@/lib/providers";
+import { refreshSteamProfileLive } from "@/lib/providers/steam";
 import { savePaidFen } from "@/lib/steam-paid";
 
 export async function addItem(
@@ -138,4 +139,9 @@ export async function saveSteamPaidPrice(formData: FormData): Promise<void> {
   if (Number.isInteger(parentAppid) && parentAppid > 0 && parentAppid !== appid) {
     revalidatePath(`/steam/${parentAppid}`);
   }
+}
+
+export async function refreshSteamProfile(): Promise<void> {
+  await refreshSteamProfileLive();
+  revalidatePath("/");
 }

@@ -1,37 +1,24 @@
 import Link from "next/link";
 import { Cover } from "./cover";
+import { ProfileRefreshButton } from "./profile-refresh-button";
 import { RefreshButton } from "./refresh-button";
 import { SteamLiveGate } from "./steam-live-gate";
-import { GameTabSearch } from "./game-tab-search";
-import { gamePageHref } from "@/lib/game-href";
+import { GameFilterInput, GameFilterProvider, GameTabSearch } from "./game-tab-search";
+import { parseGameView } from "@/lib/game-href";
 import {
   cachedPerfectCount,
   filterPerfectGames,
   getSteamPlayerPage,
   type SteamGameRow,
+  type SteamXp,
 } from "@/lib/providers/steam";
 import { buildGameViews } from "@/lib/steam-views";
-import { formatBackupTime, formatFenLabel, formatHours, formatYuan, gamePriceFen } from "@/lib/steam-format";
+import { formatBackupTime, formatFenLabel, formatHourNumber, formatHours, gamePriceFen } from "@/lib/steam-format";
 import { ProviderNotConfiguredError } from "@/lib/providers";
 import { formatRating, statusLabel } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { loadLocalEnv } from "@/lib/load-local-env";
 import { listPaidFen } from "@/lib/steam-paid";
-
-export const GAME_VIEWS = [
-  { value: "recent", label: "最近游玩" },
-  { value: "played", label: "全部游玩" },
-  { value: "perfect", label: "完美通关" },
-  { value: "owned", label: "库存游戏" },
-  { value: "family", label: "家庭库" },
-  { value: "want", label: "想玩" },
-] as const;
-
-export type GameView = (typeof GAME_VIEWS)[number]["value"];
-
-export function parseGameView(value: string | undefined): GameView {
-  return GAME_VIEWS.some((v) => v.value === value) ? (value as GameView) : "recent";
-}
 
 export async function SteamPanel({
   view,
@@ -59,21 +46,37 @@ export async function SteamPanel({
       current === "perfect"
         ? await filterPerfectGames(views.library, { fromCache: data.fromCache })
         : [];
-    const counts: Record<GameView, number | null> = {
-      recent: views.recent.length,
-      played: views.played.length,
-      perfect: current === "perfect" ? perfect.length : cachedPerfectCount(views.library),
-      owned: views.owned.length,
-      family: views.family.length,
-      want: wantItems.length,
-    };
     const prices = ownedPriceTotals(views.owned, paidByApp);
 
     return (
-      <>
+      <GameFilterProvider storageKey={current}>
         <SteamLiveGate />
-        <section className="steam-profile">
-          <div className="steam-profile-main">
+        <div className="steam-profile-row">
+        <section
+          className={
+            data.profile.miniBackgroundUrl || data.profile.miniBackgroundMovieUrl
+              ? "steam-profile has-mini-bg"
+              : "steam-profile"
+          }
+        >
+          {data.profile.miniBackgroundMovieUrl ? (
+            <video
+              className="steam-profile-bg"
+              src={data.profile.miniBackgroundMovieUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+          ) : data.profile.miniBackgroundUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="steam-profile-bg" src={data.profile.miniBackgroundUrl} alt="" />
+          ) : null}
+          {data.profile.miniBackgroundUrl || data.profile.miniBackgroundMovieUrl ? (
+            <div className="steam-profile-bg-dim" />
+          ) : null}
+          <ProfileRefreshButton />
+          <div className="steam-profile-top">
             {data.profile.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -84,50 +87,65 @@ export async function SteamPanel({
             ) : (
               <div className="steam-avatar cover-empty" />
             )}
-            <div>
-              <h2 className="steam-name">{data.profile.name}</h2>
-              <p className="steam-stats">
-                总时长 {formatHours(data.totalPlaytimeMin)}
-              </p>
-              {views.owned.length > 0 ? (
-                <p className="steam-stats">
-                  库存价值：{formatYuan(prices.paidTotal)} / {formatYuan(prices.originalTotal)}
-                </p>
-              ) : null}
-              {data.familyError ? <p className="muted">{data.familyError}</p> : null}
-              {data.cacheReason === "offline" ? (
-                <p className="muted">
-                  当前是本地备份
-                  {data.cachedAt ? `（${formatBackupTime(data.cachedAt)}）` : ""}
-                  。连上 Steam 后点刷新会覆盖这份备份。
-                </p>
-              ) : null}
+            <div className="steam-profile-id">
+              <h2 className="steam-name-row">
+                <span className="steam-name">{data.profile.name}</span>
+                <span
+                  className={`steam-presence is-${data.profile.presence ?? "offline"}`}
+                >
+                  {data.profile.presence === "ingame"
+                    ? `游玩${data.profile.playingName || "游戏"}中`
+                    : data.profile.presence === "online"
+                      ? "在线"
+                      : "离线"}
+                </span>
+              </h2>
               <a href={data.profile.profileUrl} target="_blank" rel="noreferrer">
                 公开资料
               </a>
             </div>
           </div>
-          <RefreshButton view={current} />
+          <div className="steam-profile-metrics">
+            <p className="steam-metric">
+              <span className="steam-metric-label">游玩时长</span>
+              <span className="steam-metric-value">
+                {formatHourNumber(data.totalPlaytimeMin)} h
+              </span>
+            </p>
+            <p className="steam-metric">
+              <span className="steam-metric-label">库存价值</span>
+              <span className="steam-metric-value">
+                {views.owned.length > 0
+                  ? `${(prices.paidTotal / 100).toFixed(2)} / ${(prices.originalTotal / 100).toFixed(2)} ￥`
+                  : "—"}
+              </span>
+            </p>
+          </div>
         </section>
-
-        <div className="filters">
-          {GAME_VIEWS.map((v) => (
-            <Link
-              key={v.value}
-              href={gamePageHref(v.value)}
-              className={current === v.value ? "filter active" : "filter"}
-            >
-              {v.label}
-              {counts[v.value] != null ? (
-                <span className="filter-count">{counts[v.value]}</span>
-              ) : null}
-            </Link>
-          ))}
+        <SteamOverview
+          xp={data.xp ?? null}
+          owned={views.owned.length}
+          family={views.family.length}
+          perfect={cachedPerfectCount(views.library)}
+          want={wantItems.length}
+          recent={views.recent}
+        />
+        <div className="steam-profile-tools">
+          <RefreshButton view={current} />
+          <GameFilterInput />
         </div>
+        </div>
+        {data.familyError ? <p className="muted">{data.familyError}</p> : null}
+        {data.cacheReason === "offline" ? (
+          <p className="muted">
+            当前是本地备份
+            {data.cachedAt ? `（${formatBackupTime(data.cachedAt)}）` : ""}
+            。连上 Steam 后点刷新会覆盖这份备份。
+          </p>
+        ) : null}
 
         {current === "recent" ? (
           <SteamList
-            storageKey="recent"
             games={views.recent}
             paidByApp={paidByApp}
             empty="近两周没有在库存或家庭库里的游玩记录。"
@@ -135,7 +153,6 @@ export async function SteamPanel({
         ) : null}
         {current === "played" ? (
           <SteamList
-            storageKey="played"
             games={views.played}
             paidByApp={paidByApp}
             empty="库存和家庭库里还没有游玩时长。"
@@ -143,20 +160,18 @@ export async function SteamPanel({
         ) : null}
         {current === "perfect" ? (
           <SteamList
-            storageKey="perfect"
             games={perfect}
             paidByApp={paidByApp}
             empty="还没有完美通关的游戏。库存和家庭库里成就已全部解锁的都会列在这里。"
           />
         ) : null}
         {current === "owned" ? (
-          <OwnedList storageKey="owned" games={views.owned} paidByApp={paidByApp} />
+          <OwnedList games={views.owned} paidByApp={paidByApp} />
         ) : null}
         {current === "family" ? (
           <>
             <FamilyHint error={data.familyError} loaded={views.family.length > 0} />
             <SteamList
-              storageKey="family"
               games={views.family}
               paidByApp={paidByApp}
               empty={familyEmpty(data)}
@@ -164,7 +179,7 @@ export async function SteamPanel({
           </>
         ) : null}
         {current === "want" ? <WantList items={wantItems} /> : null}
-      </>
+      </GameFilterProvider>
     );
   } catch (err) {
     const message =
@@ -189,6 +204,73 @@ export async function SteamPanel({
       </div>
     );
   }
+}
+
+function xpPercent(xp: SteamXp): number {
+  const into = Math.max(0, xp.xp - xp.xpCurrentLevel);
+  const span = into + Math.max(0, xp.xpToNext);
+  if (span <= 0) return 100;
+  return Math.min(100, Math.round((into / span) * 100));
+}
+
+function SteamOverview({
+  xp,
+  owned,
+  family,
+  perfect,
+  want,
+  recent,
+}: {
+  xp: SteamXp | null;
+  owned: number;
+  family: number;
+  perfect: number | null;
+  want: number;
+  recent: SteamGameRow[];
+}) {
+  const counts: { label: string; value: string }[] = [
+    { label: "库存", value: String(owned) },
+    { label: "家庭库", value: String(family) },
+    { label: "完美通关", value: perfect == null ? "—" : String(perfect) },
+    { label: "想玩", value: String(want) },
+  ];
+  const covers = recent.slice(0, 5);
+  const pct = xp ? xpPercent(xp) : 0;
+
+  return (
+    <div className="steam-overview">
+      <div className="steam-overview-meta">
+      <div className="steam-level">
+        <p className="steam-level-label">
+          等级 <strong>{xp ? xp.level : "—"}</strong>
+          {xp ? <span className="steam-level-xp">{pct}%</span> : null}
+        </p>
+        <div className="steam-xp" role="meter" aria-label="Steam 经验" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <span className="steam-xp-fill" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <div className="steam-counts">
+        {counts.map((c) => (
+          <div key={c.label} className="steam-count">
+            <strong>{c.value}</strong>
+            <span>{c.label}</span>
+          </div>
+        ))}
+      </div>
+      </div>
+      {covers.length > 0 ? (
+        <div className="steam-recent-strip">
+          {covers.map((g) => (
+            <Link key={g.appid} href={`/steam/${g.appid}`} title={g.name} className="steam-recent-cover">
+              <Cover appid={g.appid} url={g.coverUrl} title={g.name} size="wide" />
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="steam-overview-empty">近两周没有游玩记录</p>
+      )}
+    </div>
+  );
 }
 
 function FamilyHint({ error, loaded }: { error: string | null; loaded: boolean }) {
@@ -238,19 +320,17 @@ function isCardPerfect(game: SteamGameRow): boolean {
 }
 
 function SteamList({
-  storageKey,
   games,
   empty,
   paidByApp,
 }: {
-  storageKey: string;
   games: SteamGameRow[];
   empty: string;
   paidByApp: Map<number, number>;
 }) {
   if (games.length === 0) return <p className="empty">{empty}</p>;
   return (
-    <GameTabSearch storageKey={storageKey}>
+    <GameTabSearch>
       {games.map((game) => (
         <Link
           key={game.appid}
@@ -328,11 +408,9 @@ function ownedPriceTotals(
 }
 
 function OwnedList({
-  storageKey,
   games,
   paidByApp,
 }: {
-  storageKey: string;
   games: SteamGameRow[];
   paidByApp: Map<number, number>;
 }) {
@@ -343,7 +421,7 @@ function OwnedList({
       </p>
     );
   }
-  return <SteamList storageKey={storageKey} games={games} paidByApp={paidByApp} empty="" />;
+  return <SteamList games={games} paidByApp={paidByApp} empty="" />;
 }
 
 async function loadWantItems(hideAppIds: number[]) {
@@ -370,7 +448,7 @@ async function WantList({
       {items.length === 0 ? (
         <p className="empty">还没有想玩的。从搜索里加入后，状态选「想玩」。</p>
       ) : (
-        <GameTabSearch storageKey="want">
+        <GameTabSearch>
           {items.map((item) => (
             <Link
               key={item.id}

@@ -12,8 +12,17 @@ type TmdbMovie = {
   overview?: string;
 };
 
-type TmdbSearchResponse = {
-  results?: TmdbMovie[];
+type TmdbTv = {
+  id: number;
+  name?: string;
+  original_name?: string;
+  first_air_date?: string;
+  poster_path?: string | null;
+  overview?: string;
+};
+
+type TmdbSearchResponse<T> = {
+  results?: T[];
   status_message?: string;
 };
 
@@ -43,7 +52,7 @@ async function tmdbGet(path: string, params: Record<string, string>): Promise<un
   if (!res.ok) {
     const message =
       data && typeof data === "object" && "status_message" in data
-        ? String((data as TmdbSearchResponse).status_message)
+        ? String((data as TmdbSearchResponse<unknown>).status_message)
         : `TMDB 请求失败（${res.status}）`;
     throw new Error(message);
   }
@@ -55,7 +64,7 @@ export const tmdbProvider: Provider = {
   source: "tmdb",
 
   async search(query: string): Promise<SearchHit[]> {
-    const data = (await tmdbGet("/search/movie", { query })) as TmdbSearchResponse;
+    const data = (await tmdbGet("/search/movie", { query })) as TmdbSearchResponse<TmdbMovie>;
     return (data.results ?? []).map((movie) => ({
       sourceId: String(movie.id),
       title: movie.title || movie.original_title || "未命名",
@@ -82,6 +91,41 @@ export const tmdbProvider: Provider = {
       year: yearFromDate(movie.release_date),
       coverUrl: posterUrl(movie.poster_path),
       description: movie.overview || null,
+      extraJson: null,
+    };
+  },
+};
+
+export const tmdbTvProvider: Provider = {
+  type: "tv",
+  source: "tmdb",
+
+  async search(query: string): Promise<SearchHit[]> {
+    const data = (await tmdbGet("/search/tv", { query })) as TmdbSearchResponse<TmdbTv>;
+    return (data.results ?? []).map((show) => ({
+      sourceId: String(show.id),
+      title: show.name || show.original_name || "未命名",
+      year: yearFromDate(show.first_air_date),
+      coverUrl: posterUrl(show.poster_path),
+      subtitle:
+        show.original_name && show.original_name !== show.name ? show.original_name : null,
+    }));
+  },
+
+  async getDetail(sourceId: string): Promise<ItemSnapshot> {
+    const show = (await tmdbGet(`/tv/${encodeURIComponent(sourceId)}`, {})) as TmdbTv;
+    const title = show.name || show.original_name || "未命名";
+    const originalTitle =
+      show.original_name && show.original_name !== title ? show.original_name : null;
+    return {
+      type: "tv",
+      source: "tmdb",
+      sourceId: String(show.id),
+      title,
+      originalTitle,
+      year: yearFromDate(show.first_air_date),
+      coverUrl: posterUrl(show.poster_path),
+      description: show.overview || null,
       extraJson: null,
     };
   },

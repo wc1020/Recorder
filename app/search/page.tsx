@@ -61,7 +61,7 @@ export default async function SearchPage({
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="片名 / 书名 / 游戏名"
+          placeholder="片名 / 剧名 / 书名 / 游戏名"
           required
         />
         <button className="btn" type="submit">

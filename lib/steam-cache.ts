@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import type { SteamPlayerPage } from "./providers/steam";
+import type { SteamPlayerPage, SteamProfile, SteamXp } from "./providers/steam";
 
 const FILE = path.join(process.cwd(), "local", "steam-cache.json");
 
@@ -57,6 +57,19 @@ export async function saveSteamPerfectBackup(items: SteamPerfectItem[]): Promise
   await writeBackup({
     ...prev,
     perfect: items,
+  });
+}
+
+/** 只改资料卡和等级，不改库存备份时间。 */
+export async function saveSteamProfileBackup(
+  profile: SteamProfile,
+  xp: SteamXp | null,
+): Promise<void> {
+  const prev = await loadSteamBackup();
+  if (!prev) return;
+  await writeBackup({
+    ...prev,
+    player: { ...prev.player, profile, xp },
   });
 }
 

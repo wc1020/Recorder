@@ -1,6 +1,6 @@
 # projectM
 
-私人豆瓣：记录看过的电影、读过的书、玩过的游戏。
+私人豆瓣：记录看过的电影、电视剧、读过的书、玩过的游戏。
 
 **第一次在自己电脑上跑：** 按 [docs/DEPLOY.md](docs/DEPLOY.md) 从安装 Node.js 做到打开网页。下面是已经会用终端的人看的短步骤。
 
@@ -19,8 +19,8 @@ npm install
 
 在 `local/.env` 里填入对应 API Key（没有 Key 的类型搜索时会提示未配置，不会假装成功）：
 
-- `TMDB_API_KEY` — 电影
-- `GOOGLE_BOOKS_API_KEY` — 书
+- `TMDB_API_KEY` — 电影 / 电视剧
+- `GOOGLE_BOOKS_API_KEY` — 图书
 - `STEAM_API_KEY` — 游戏搜索（[申请](https://steamcommunity.com/dev/apikey)，Domain 可填 `localhost`）
 - `STEAM_STEAMID` — 游戏 Tab 拉公开资料 / 库存 / 最近游玩（17 位 SteamID64，或自定义主页名）
 - `STEAM_ACCESS_TOKEN` — 可选，家庭库列表和时长。浏览器登录 [Steam 商店](https://store.steampowered.com/) 后打开 [这页](https://store.steampowered.com/pointssummary/ajaxgetasyncconfig)，把 `webapi_token` 贴进来。大约一天过期，过期再复制一次。
