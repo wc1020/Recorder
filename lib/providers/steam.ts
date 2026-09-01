@@ -441,41 +441,46 @@ async function fetchAchievementProgress(
   steamid: string,
   appids: number[],
 ): Promise<Map<number, AchProgress>> {
-  const out = new Map<number, AchProgress>();
-  const auth = await getFamilyAccessToken(steamid);
-  if (!auth.token) return out;
   const unique = [...new Set(appids)].filter((id) => id > 0);
-  for (let i = 0; i < unique.length; i += 80) {
-    const chunk = unique.slice(i, i + 80);
-    try {
-      const data = (await steamAccessPost(
-        "IPlayerService/GetAchievementsProgress/v1/",
-        auth.token,
-        {
+  if (unique.length === 0) return new Map();
+  return fetchAchievementProgressByKey(steamid, unique);
+}
+
+async function fetchAchievementProgressByKey(
+  steamid: string,
+  appids: number[],
+): Promise<Map<number, AchProgress>> {
+  const out = new Map<number, AchProgress>();
+  const queue = appids.slice();
+  const workers = Array.from({ length: Math.min(8, queue.length) }, async () => {
+    while (queue.length) {
+      const appid = queue.shift();
+      if (!appid) return;
+      try {
+        const raw = (await steamQuery("ISteamUserStats/GetPlayerAchievements/v1/", {
           steamid,
-          language: "schinese",
-          appids: chunk,
-        },
-      )) as {
-        response?: {
-          achievement_progress?: {
-            appid?: number;
-            unlocked?: number;
-            total?: number;
-          }[];
+          appid: String(appid),
+        })) as {
+          playerstats?: {
+            success?: boolean;
+            achievements?: { achieved?: number }[];
+          };
         };
-      };
-      for (const row of data.response?.achievement_progress ?? []) {
-        if (!row.appid) continue;
-        out.set(row.appid, {
-          unlocked: row.unlocked ?? 0,
-          total: row.total ?? 0,
+        const list = raw.playerstats?.success ? raw.playerstats.achievements : null;
+        if (!list) {
+          out.set(appid, { unlocked: 0, total: 0 });
+          continue;
+        }
+        out.set(appid, {
+          unlocked: list.filter((a) => a.achieved === 1).length,
+          total: list.length,
         });
+      } catch {
+        // 单游戏失败就跳过，卡片显示 —
       }
-    } catch {
-      // 这一批失败就跳过，卡片显示 —
     }
-  }
+  });
+  await Promise.all(workers);
   return out;
 }
 
@@ -534,9 +539,14 @@ function parsePrivateAppIds(raw: unknown): Set<number> {
   return ids;
 }
 
+async function lastPrivateAppIds(): Promise<Set<number>> {
+  const backup = await loadSteamBackup();
+  return new Set(backup?.player?.privateAppIds ?? []);
+}
+
 async function fetchPrivateAppIds(steamid: string): Promise<Set<number>> {
   const auth = await getFamilyAccessToken(steamid);
-  if (!auth.token) return new Set();
+  if (!auth.token) return lastPrivateAppIds();
   try {
     const data = await steamAccessGet(
       "IAccountPrivateAppsService/GetPrivateAppList/v1/",
@@ -545,7 +555,7 @@ async function fetchPrivateAppIds(steamid: string): Promise<Set<number>> {
     );
     return parsePrivateAppIds(data);
   } catch {
-    return new Set();
+    return lastPrivateAppIds();
   }
 }
 
@@ -733,10 +743,7 @@ async function getFamilyAccessToken(steamid: string): Promise<FamilyAuth> {
   }
 
   if (!tokenStillGood(access)) {
-    return {
-      token: null,
-      error: "STEAM_ACCESS_TOKEN 已过期。重新从商店页复制 webapi_token，或改填可自动续期的 STEAM_REFRESH_TOKEN。",
-    };
+    return { token: null, error: null };
   }
   return { token: access, error: null };
 }
@@ -853,6 +860,7 @@ type StoreExtra = {
   coverUrl: string | null;
   price: string | null;
   originalFen: number | null;
+  name: string | null;
 };
 
 async function fetchStoreExtras(appids: number[]): Promise<Map<number, StoreExtra>> {
@@ -872,6 +880,7 @@ async function fetchStoreExtras(appids: number[]): Promise<Map<number, StoreExtr
           coverUrl: coverUrl(item.assets),
           price: priceLabel(item),
           originalFen: originalFenOf(item),
+          name: item.name?.trim() || null,
         });
       }
     } catch {
@@ -1121,6 +1130,9 @@ function playerFromBackup(
     owned,
     family,
     familyPlaytimeMin,
+    familyError: p.familyError?.includes("STEAM_ACCESS_TOKEN 已过期")
+      ? null
+      : p.familyError,
     totalPlaytimeMin: ownedPlaytimeMin + familyPlaytimeMin + (p.familyRecentPlaytimeMin ?? 0),
     privateAppIds: [...hidden],
     fromCache: true,
@@ -1154,6 +1166,7 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
       steamid,
       include_appinfo: "1",
       include_played_free_games: "1",
+      skip_unvetted_apps: "false",
     }),
     steamQuery("IPlayerService/GetRecentlyPlayedGames/v1/", {
       steamid,
@@ -1211,7 +1224,7 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     return withProgress(
       {
         appid: g.appid,
-        name: g.name || `App ${g.appid}`,
+        name: extra?.name || g.name || `App ${g.appid}`,
         coverUrl: extra?.coverUrl || storeCapsule(g.appid),
         playtimeForeverMin: g.playtime_forever ?? 0,
         playtime2WeeksMin: g.playtime_2weeks ?? 0,
@@ -1475,6 +1488,7 @@ async function fetchSteamGameLive(appid: number): Promise<SteamGamePage> {
       steamid,
       include_appinfo: "1",
       include_played_free_games: "1",
+      skip_unvetted_apps: "false",
     }).catch(() => null),
     steamQuery("IPlayerService/GetRecentlyPlayedGames/v1/", {
       steamid,

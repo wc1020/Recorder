@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Cover } from "./cover";
 import { RefreshButton } from "./refresh-button";
 import { SteamLiveGate } from "./steam-live-gate";
+import { GameTabSearch } from "./game-tab-search";
 import { gamePageHref } from "@/lib/game-href";
 import {
   cachedPerfectCount,
@@ -126,6 +127,7 @@ export async function SteamPanel({
 
         {current === "recent" ? (
           <SteamList
+            storageKey="recent"
             games={views.recent}
             paidByApp={paidByApp}
             empty="近两周没有在库存或家庭库里的游玩记录。"
@@ -133,6 +135,7 @@ export async function SteamPanel({
         ) : null}
         {current === "played" ? (
           <SteamList
+            storageKey="played"
             games={views.played}
             paidByApp={paidByApp}
             empty="库存和家庭库里还没有游玩时长。"
@@ -140,18 +143,24 @@ export async function SteamPanel({
         ) : null}
         {current === "perfect" ? (
           <SteamList
+            storageKey="perfect"
             games={perfect}
             paidByApp={paidByApp}
             empty="还没有完美通关的游戏。库存和家庭库里成就已全部解锁的都会列在这里。"
           />
         ) : null}
         {current === "owned" ? (
-          <OwnedList games={views.owned} paidByApp={paidByApp} />
+          <OwnedList storageKey="owned" games={views.owned} paidByApp={paidByApp} />
         ) : null}
         {current === "family" ? (
           <>
             <FamilyHint error={data.familyError} loaded={views.family.length > 0} />
-            <SteamList games={views.family} paidByApp={paidByApp} empty={familyEmpty(data)} />
+            <SteamList
+              storageKey="family"
+              games={views.family}
+              paidByApp={paidByApp}
+              empty={familyEmpty(data)}
+            />
           </>
         ) : null}
         {current === "want" ? <WantList items={wantItems} /> : null}
@@ -229,21 +238,24 @@ function isCardPerfect(game: SteamGameRow): boolean {
 }
 
 function SteamList({
+  storageKey,
   games,
   empty,
   paidByApp,
 }: {
+  storageKey: string;
   games: SteamGameRow[];
   empty: string;
   paidByApp: Map<number, number>;
 }) {
   if (games.length === 0) return <p className="empty">{empty}</p>;
   return (
-    <div className="grid">
+    <GameTabSearch storageKey={storageKey}>
       {games.map((game) => (
         <Link
           key={game.appid}
           href={`/steam/${game.appid}`}
+          data-name={game.name}
           className={isCardPerfect(game) ? "card card-perfect" : "card"}
         >
           <Cover url={game.coverUrl} title={game.name} />
@@ -255,7 +267,7 @@ function SteamList({
           </div>
         </Link>
       ))}
-    </div>
+    </GameTabSearch>
   );
 }
 
@@ -270,7 +282,7 @@ function GameCardStats({
   const achUnlocked = game.achUnlocked ?? null;
   const achText =
     achTotal != null && achTotal > 0
-      ? `${achUnlocked ?? 0}/${achTotal}`
+      ? `${achUnlocked ?? 0} / ${achTotal}`
       : achTotal === 0
         ? "无"
         : "—";
@@ -316,9 +328,11 @@ function ownedPriceTotals(
 }
 
 function OwnedList({
+  storageKey,
   games,
   paidByApp,
 }: {
+  storageKey: string;
   games: SteamGameRow[];
   paidByApp: Map<number, number>;
 }) {
@@ -329,7 +343,7 @@ function OwnedList({
       </p>
     );
   }
-  return <SteamList games={games} paidByApp={paidByApp} empty="" />;
+  return <SteamList storageKey={storageKey} games={games} paidByApp={paidByApp} empty="" />;
 }
 
 async function loadWantItems(hideAppIds: number[]) {
@@ -356,9 +370,14 @@ async function WantList({
       {items.length === 0 ? (
         <p className="empty">还没有想玩的。从搜索里加入后，状态选「想玩」。</p>
       ) : (
-        <div className="grid">
+        <GameTabSearch storageKey="want">
           {items.map((item) => (
-            <Link key={item.id} href={`/item/${item.id}`} className="card">
+            <Link
+              key={item.id}
+              href={`/item/${item.id}`}
+              data-name={item.title}
+              className="card"
+            >
               <Cover url={item.coverUrl} title={item.title} />
               <div className="card-body">
                 <p className="card-title" title={item.title}>
@@ -371,7 +390,7 @@ async function WantList({
               </div>
             </Link>
           ))}
-        </div>
+        </GameTabSearch>
       )}
     </>
   );

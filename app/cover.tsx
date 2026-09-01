@@ -22,7 +22,7 @@ export function Cover({
 }: {
   url: string | null;
   title: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "wide";
 }) {
   const [src, setSrc] = useState(url);
   const [failed, setFailed] = useState(false);

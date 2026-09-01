@@ -27,7 +27,7 @@ export default async function Home({
 
   return (
     <>
-      <h1 className="sr-only">projectM</h1>
+      <h1 className="sr-only">ProjectM</h1>
       <div className="tabs">
         {MEDIA_TYPES.map((t) => (
           <Link

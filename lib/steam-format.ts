@@ -1,7 +1,5 @@
 export function formatYuan(fen: number): string {
-  const yuan = fen / 100;
-  const text = Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
-  return `¥${text}`;
+  return `¥${(fen / 100).toFixed(2)}`;
 }
 
 export function formatFenLabel(fen: number | null): string {
@@ -22,17 +20,30 @@ export function gamePriceFen(
   originalFen: number | null,
   dlc: DlcPriceBit[] | undefined,
   paidByApp: Map<number, number>,
-): { paid: number | null; original: number | null } {
+): {
+  paid: number | null;
+  original: number | null;
+  basePaid: number | null;
+  baseOriginal: number | null;
+} {
   const bits = dlc ?? [];
   if (bits.length === 0) {
-    return { paid: paidByApp.get(appid) ?? originalFen, original: originalFen };
+    const paid = paidByApp.get(appid) ?? originalFen;
+    return {
+      paid,
+      original: originalFen,
+      basePaid: paid,
+      baseOriginal: originalFen,
+    };
   }
   const ownedOrigSum = bits.reduce((sum, row) => {
     if (!row.owned || row.originalFen == null || row.originalFen <= 0) return sum;
     return sum + row.originalFen;
   }, 0);
-  const baseOrig = originalFen == null ? null : originalFen - ownedOrigSum;
-  let paid: number | null = paidByApp.get(appid) ?? baseOrig;
+  const baseOriginal =
+    originalFen == null ? null : Math.max(0, originalFen - ownedOrigSum);
+  const basePaid = paidByApp.get(appid) ?? baseOriginal;
+  let paid: number | null = basePaid;
   for (const row of bits) {
     const custom = paidByApp.get(row.appid);
     if (custom != null) {
@@ -43,7 +54,7 @@ export function gamePriceFen(
       paid = (paid ?? 0) + row.originalFen;
     }
   }
-  return { paid, original: originalFen };
+  return { paid, original: originalFen, basePaid, baseOriginal };
 }
 
 export function formatHours(min: number): string {
@@ -51,6 +62,15 @@ export function formatHours(min: number): string {
   if (min < 60) return `${min} 分钟`;
   const h = min / 60;
   return `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 10} 小时`;
+}
+
+/** 详情页时长数字：一律按小时，0 / 一位小数 / 整数。 */
+export function formatHourNumber(min: number): string {
+  if (min <= 0) return "0";
+  const h = min / 60;
+  if (h >= 10) return String(Math.round(h));
+  const tenths = Math.round(h * 10) / 10;
+  return String(tenths);
 }
 
 export function formatPlaytime(min: number, recentMin?: number): string {

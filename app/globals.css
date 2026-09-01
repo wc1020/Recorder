@@ -5,8 +5,8 @@
   --card: #fffdf8;
   --text: #222;
   --muted: #666;
-  --accent: #2d6a4f;
-  --accent-hover: #1b4332;
+  --accent: #0d47a1;
+  --accent-hover: #0a347a;
   --border: #e4ddd2;
   --danger: #9b2226;
 }
@@ -39,17 +39,32 @@ a:hover {
 
 .site-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   max-width: 960px;
   margin: 0 auto;
   padding: 16px 20px;
 }
 
+.header-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .logo {
-  color: var(--text);
+  background: #111;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
   font-size: 1.25rem;
   font-weight: 700;
+  text-decoration: none;
+}
+
+.logo:hover {
+  color: #fff;
   text-decoration: none;
 }
 
@@ -89,6 +104,11 @@ a:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+button.filter {
+  cursor: pointer;
+  font: inherit;
 }
 
 .filter-count {
@@ -164,24 +184,70 @@ a:hover {
   padding: 0 10px 10px;
 }
 
+.paid-slot {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.paid-slot > .btn-mini {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .paid-form {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  gap: 4px;
   align-items: center;
+  margin: 0;
 }
 
 .paid-form input {
-  width: 72px;
-  padding: 4px 6px;
+  width: 64px;
+  height: 24px;
+  padding: 0 6px;
   border: 1px solid var(--border);
   border-radius: 4px;
   font: inherit;
+  font-size: 0.8rem;
+}
+
+.paid-form .btn-mini {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.price-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 
 .btn-tiny {
   padding: 4px 8px;
   font-size: 0.8rem;
+}
+
+.btn-mini {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  border-radius: 4px;
+}
+
+.btn-mini svg {
+  display: block;
 }
 
 .btn-ghost {
@@ -271,6 +337,13 @@ a:hover {
   flex-shrink: 0;
 }
 
+.cover-wide {
+  width: 132px;
+  height: 62px;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
 .cover-md {
   width: 100%;
   aspect-ratio: 2 / 3;
@@ -323,6 +396,17 @@ a:hover {
   color: #fff;
   font: inherit;
   cursor: pointer;
+}
+
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+  color: #fff;
+}
+
+a.btn:hover {
+  text-decoration: none;
+  color: #fff;
 }
 
 .btn:hover {
@@ -385,6 +469,65 @@ a:hover {
 .detail-info h1 {
   margin: 0 0 8px;
   font-size: 1.6rem;
+}
+
+.detail-game {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.detail-game .cover-lg {
+  display: block;
+}
+
+.detail-game .detail-info {
+  display: flex;
+  flex-direction: column;
+  height: 270px;
+  min-height: 270px;
+  max-height: 270px;
+  min-width: 0;
+}
+
+.detail-game .detail-info h1 {
+  margin: 0;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-game .detail-play,
+.detail-game .detail-sum,
+.detail-game .detail-review,
+.detail-game .price-line {
+  margin: 6px 0 0;
+}
+
+.detail-game .detail-num {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.detail-game .review-box {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+}
+
+.detail-game .detail-desc {
+  margin: 8px 0 0;
+  flex: 1;
+  min-height: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.detail-game .detail-store {
+  margin-top: auto;
+  margin-bottom: 0;
+  line-height: 1;
 }
 
 .entry-form {
@@ -483,8 +626,8 @@ a:hover {
 .dlc-row {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
-  padding: 10px 12px;
+  align-items: center;
+  padding: 8px 10px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -497,13 +640,55 @@ a:hover {
 .dlc-body {
   min-width: 0;
   flex: 1;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 4px;
 }
 
-.dlc-body .paid-form,
-.dlc-body .btn-tiny {
-  margin-top: 4px;
+.dlc-name {
+  margin: 0;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dlc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dlc-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  background: #e4eee4;
+  color: #2d5a2d;
+}
+
+.dlc-tag.off {
+  background: #eeeae3;
+  color: var(--muted);
+}
+
+.dlc-price {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.dlc-meta .paid-slot {
+  width: 120px;
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .ach-row {
