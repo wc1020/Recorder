@@ -7,9 +7,11 @@ import { formatYuan } from "@/lib/steam-format";
 export function PaidPriceButton({
   appid,
   paidFen,
+  parentAppid,
 }: {
   appid: number;
   paidFen: number | null;
+  parentAppid?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -33,6 +35,7 @@ export function PaidPriceButton({
       }}
     >
       <input type="hidden" name="appid" value={appid} />
+      {parentAppid ? <input type="hidden" name="parentAppid" value={parentAppid} /> : null}
       <input
         name="paid"
         type="number"

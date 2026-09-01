@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Cover } from "../../cover";
 import { PaidPriceButton } from "../../paid-price-button";
-import { getSteamGamePage } from "@/lib/providers/steam";
-import { formatFenLabel, formatPlaytime } from "@/lib/steam-format";
+import { getSteamGamePage, type SteamDlcRow } from "@/lib/providers/steam";
+import { formatFenLabel, formatPlaytime, gamePriceFen } from "@/lib/steam-format";
 import { listPaidFen } from "@/lib/steam-paid";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +34,21 @@ export default async function SteamGamePage({
 
   const unlocked = data.achievements?.filter((a) => a.unlocked).length ?? 0;
   const total = data.achievements?.length ?? 0;
-  const paidFen = (await listPaidFen([appid])).get(appid) ?? null;
-  const paidShown = paidFen ?? data.originalFen;
+  const paidByApp = await listPaidFen([
+    appid,
+    ...data.dlc.map((row) => row.appid),
+  ]);
+  const prices = gamePriceFen(
+    appid,
+    data.originalFen,
+    data.dlc.map((row) => ({
+      appid: row.appid,
+      originalFen: row.originalFen,
+      owned: row.owned,
+    })),
+    paidByApp,
+  );
+  const ownedDlc = data.dlc.filter((row) => row.owned).length;
 
   return (
     <>
@@ -50,10 +63,10 @@ export default async function SteamGamePage({
             {formatPlaytime(data.playtimeForeverMin, data.playtime2WeeksMin)}
           </p>
           <p className="muted">
-            购入价 / 原价：{formatFenLabel(paidShown)} / {formatFenLabel(data.originalFen)}
+            购入价 / 原价：{formatFenLabel(prices.paid)} / {formatFenLabel(prices.original)}
           </p>
           {data.fromOwned ? (
-            <PaidPriceButton appid={appid} paidFen={paidFen} />
+            <PaidPriceButton appid={appid} paidFen={paidByApp.get(appid) ?? null} />
           ) : null}
           {!data.fromOwned && data.fromFamily ? (
             <p className="muted">家庭库游戏，时长来自家庭共享记录。</p>
@@ -80,6 +93,29 @@ export default async function SteamGamePage({
           </p>
         </div>
       </div>
+
+      <h2 className="section-title">
+        DLC
+        {data.dlc.length > 0
+          ? `（已购 ${ownedDlc}/${data.dlc.length}）`
+          : ""}
+      </h2>
+      {data.dlcError ? <p className="muted">{data.dlcError}</p> : null}
+      {data.dlc.length === 0 && !data.dlcError ? (
+        <p className="muted">没有 DLC。</p>
+      ) : null}
+      {data.dlc.length > 0 ? (
+        <div className="dlc-list">
+          {data.dlc.map((row) => (
+            <DlcRow
+              key={row.appid}
+              row={row}
+              parentAppid={appid}
+              paidFen={paidByApp.get(row.appid) ?? null}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <h2 className="section-title">
         我的成就
@@ -113,6 +149,40 @@ export default async function SteamGamePage({
         </div>
       ) : null}
     </>
+  );
+}
+
+function DlcRow({
+  row,
+  parentAppid,
+  paidFen,
+}: {
+  row: SteamDlcRow;
+  parentAppid: number;
+  paidFen: number | null;
+}) {
+  const linePaid = paidFen ?? (row.owned ? row.originalFen : null);
+  return (
+    <div className={row.owned ? "dlc-row" : "dlc-row locked"}>
+      <Cover url={row.coverUrl} title={row.name} size="sm" />
+      <div className="dlc-body">
+        <p className="ach-name">{row.name}</p>
+        <p className="card-meta">
+          {row.owned ? "已购买" : "未购买"}
+          {` · 购入 ${formatFenLabel(linePaid)} / 原价 ${formatFenLabel(row.originalFen)}`}
+        </p>
+        <p>
+          <a href={row.storeUrl} target="_blank" rel="noreferrer">
+            Steam 商店
+          </a>
+        </p>
+        <PaidPriceButton
+          appid={row.appid}
+          paidFen={paidFen}
+          parentAppid={parentAppid}
+        />
+      </div>
+    </div>
   );
 }
 

@@ -10,6 +10,42 @@ export function formatFenLabel(fen: number | null): string {
   return formatYuan(fen);
 }
 
+export type DlcPriceBit = {
+  appid: number;
+  originalFen: number | null;
+  owned: boolean;
+};
+
+/** 本体（购入或原价）+ 已购 DLC（购入或原价）；未购但填了购入价的也加进购入合计。 */
+export function gamePriceFen(
+  appid: number,
+  originalFen: number | null,
+  dlc: DlcPriceBit[] | undefined,
+  paidByApp: Map<number, number>,
+): { paid: number | null; original: number | null } {
+  const bits = dlc ?? [];
+  if (bits.length === 0) {
+    return { paid: paidByApp.get(appid) ?? originalFen, original: originalFen };
+  }
+  const ownedOrigSum = bits.reduce((sum, row) => {
+    if (!row.owned || row.originalFen == null || row.originalFen <= 0) return sum;
+    return sum + row.originalFen;
+  }, 0);
+  const baseOrig = originalFen == null ? null : originalFen - ownedOrigSum;
+  let paid: number | null = paidByApp.get(appid) ?? baseOrig;
+  for (const row of bits) {
+    const custom = paidByApp.get(row.appid);
+    if (custom != null) {
+      paid = (paid ?? 0) + custom;
+      continue;
+    }
+    if (row.owned && row.originalFen != null) {
+      paid = (paid ?? 0) + row.originalFen;
+    }
+  }
+  return { paid, original: originalFen };
+}
+
 export function formatHours(min: number): string {
   if (min <= 0) return "0 小时";
   if (min < 60) return `${min} 分钟`;

@@ -164,11 +164,6 @@ a:hover {
   padding: 0 10px 10px;
 }
 
-.price-summary {
-  margin: 0 0 16px;
-  color: var(--muted);
-}
-
 .paid-form {
   display: flex;
   flex-wrap: wrap;
@@ -479,9 +474,36 @@ a:hover {
   border-radius: 8px;
 }
 
-.ach-list {
+.ach-list,
+.dlc-list {
   display: grid;
   gap: 8px;
+}
+
+.dlc-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.dlc-row.locked {
+  opacity: 0.7;
+}
+
+.dlc-body {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.dlc-body .paid-form,
+.dlc-body .btn-tiny {
+  margin-top: 4px;
 }
 
 .ach-row {

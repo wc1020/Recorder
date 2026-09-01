@@ -41,16 +41,36 @@ type SteamItem = {
       review_score_label?: string;
     };
   };
+  related_items?: { parent_appid?: number };
+  user_filter_failure?: { already_owned?: boolean };
 };
 
 type SteamListResponse = {
-  response?: { store_items?: SteamItem[] };
+  response?: {
+    store_items?: SteamItem[];
+    dlc_lists?: { parent_appid?: number; dlc_appids?: number[] }[];
+  };
 };
 
 export type SteamProfile = {
   name: string;
   profileUrl: string;
   avatarUrl: string | null;
+};
+
+export type SteamDlcPrice = {
+  appid: number;
+  originalFen: number | null;
+  owned: boolean;
+};
+
+export type SteamDlcRow = {
+  appid: number;
+  name: string;
+  coverUrl: string | null;
+  originalFen: number | null;
+  owned: boolean;
+  storeUrl: string;
 };
 
 export type SteamGameRow = {
@@ -61,6 +81,7 @@ export type SteamGameRow = {
   playtime2WeeksMin: number;
   price: string | null;
   originalFen: number | null;
+  dlcPrices?: SteamDlcPrice[];
   achUnlocked: number | null;
   achTotal: number | null;
 };
@@ -133,6 +154,12 @@ function originalFenOf(item: SteamItem): number | null {
   return centsToFen(opt.original_price_in_cents) ?? centsToFen(opt.final_price_in_cents);
 }
 
+function addFen(base: number | null | undefined, extra: number | undefined): number | null {
+  if (extra == null || extra === 0) return base ?? null;
+  if (base == null) return extra;
+  return base + extra;
+}
+
 function priceLabel(item: SteamItem): string | null {
   if (item.is_free) return "免费";
   return item.best_purchase_option?.formatted_final_price || null;
@@ -149,10 +176,174 @@ const STORE_REQUEST = {
   ...DATA_REQUEST,
   include_all_purchase_options: true,
 };
+const OWNED_DLC_REQUEST = {
+  ...STORE_REQUEST,
+  apply_user_filters: true,
+};
 const DETAIL_REQUEST = {
   ...STORE_REQUEST,
   include_reviews: true,
 };
+
+/** 库存游戏的 DLC：名单用 Solr，是否已购用登录 token 的 already_owned。 */
+async function fetchDlcByParent(
+  steamid: string,
+  ownedAppids: number[],
+): Promise<Map<number, SteamDlcPrice[]>> {
+  const extra = new Map<number, SteamDlcPrice[]>();
+  const ownedSet = new Set(ownedAppids.filter((id) => id > 0));
+  if (ownedSet.size === 0) return extra;
+
+  const parentByDlc = new Map<number, number>();
+  const uniqueOwned = [...ownedSet];
+  for (let i = 0; i < uniqueOwned.length; i += 40) {
+    const chunk = uniqueOwned.slice(i, i + 40);
+    try {
+      const data = await steamWebGet("IStoreBrowseService/GetDLCForAppsSolr/v1/", {
+        context: CONTEXT,
+        appids: chunk,
+        count: 200,
+      });
+      for (const list of data.response?.dlc_lists ?? []) {
+        const parent = list.parent_appid;
+        if (!parent || !ownedSet.has(parent)) continue;
+        for (const dlcId of list.dlc_appids ?? []) {
+          if (dlcId > 0) parentByDlc.set(dlcId, parent);
+        }
+      }
+    } catch {
+      // 这一批 DLC 名单失败就跳过
+    }
+  }
+  if (parentByDlc.size === 0) return extra;
+
+  const auth = await getFamilyAccessToken(steamid);
+  const dlcIds = [...parentByDlc.keys()];
+  const seen = new Set<number>();
+  for (let i = 0; i < dlcIds.length; i += 40) {
+    const chunk = dlcIds.slice(i, i + 40);
+    try {
+      const data = auth.token
+        ? ((await steamAccessJson("IStoreBrowseService/GetItems/v1/", auth.token, {
+            ids: chunk.map((appid) => ({ appid })),
+            context: CONTEXT,
+            data_request: OWNED_DLC_REQUEST,
+          })) as SteamListResponse)
+        : await steamWebGet("IStoreBrowseService/GetItems/v1/", {
+            ids: chunk.map((appid) => ({ appid })),
+            context: CONTEXT,
+            data_request: STORE_REQUEST,
+          });
+      for (const item of data.response?.store_items ?? []) {
+        if (!item.appid) continue;
+        const parent = item.related_items?.parent_appid ?? parentByDlc.get(item.appid);
+        if (!parent || !ownedSet.has(parent)) continue;
+        seen.add(item.appid);
+        const row: SteamDlcPrice = {
+          appid: item.appid,
+          originalFen: originalFenOf(item),
+          owned: Boolean(item.user_filter_failure?.already_owned),
+        };
+        const list = extra.get(parent) ?? [];
+        list.push(row);
+        extra.set(parent, list);
+      }
+    } catch {
+      // 这一批失败就跳过
+    }
+  }
+  for (const [dlcId, parent] of parentByDlc) {
+    if (seen.has(dlcId)) continue;
+    const list = extra.get(parent) ?? [];
+    list.push({ appid: dlcId, originalFen: null, owned: false });
+    extra.set(parent, list);
+  }
+  return extra;
+}
+
+function ownedDlcFenSum(dlc: SteamDlcPrice[] | undefined): number | undefined {
+  if (!dlc || dlc.length === 0) return undefined;
+  let sum = 0;
+  let any = false;
+  for (const row of dlc) {
+    if (!row.owned || row.originalFen == null || row.originalFen <= 0) continue;
+    sum += row.originalFen;
+    any = true;
+  }
+  return any ? sum : undefined;
+}
+
+async function fetchGameDlcList(
+  steamid: string,
+  parentAppid: number,
+): Promise<{ items: SteamDlcRow[]; error: string | null }> {
+  try {
+    const data = await steamWebGet("IStoreBrowseService/GetDLCForAppsSolr/v1/", {
+      context: CONTEXT,
+      appids: [parentAppid],
+      count: 200,
+    });
+    const ids = [
+      ...new Set(
+        (data.response?.dlc_lists ?? [])
+          .filter((list) => list.parent_appid === parentAppid)
+          .flatMap((list) => list.dlc_appids ?? []),
+      ),
+    ].filter((id) => id > 0);
+    if (ids.length === 0) return { items: [], error: null };
+
+    const auth = await getFamilyAccessToken(steamid);
+    const items: SteamDlcRow[] = [];
+    const seen = new Set<number>();
+    for (let i = 0; i < ids.length; i += 40) {
+      const chunk = ids.slice(i, i + 40);
+      const raw = auth.token
+        ? ((await steamAccessJson("IStoreBrowseService/GetItems/v1/", auth.token, {
+            ids: chunk.map((appid) => ({ appid })),
+            context: CONTEXT,
+            data_request: OWNED_DLC_REQUEST,
+          })) as SteamListResponse)
+        : await steamWebGet("IStoreBrowseService/GetItems/v1/", {
+            ids: chunk.map((appid) => ({ appid })),
+            context: CONTEXT,
+            data_request: STORE_REQUEST,
+          });
+      for (const item of raw.response?.store_items ?? []) {
+        if (!item.appid || seen.has(item.appid)) continue;
+        seen.add(item.appid);
+        items.push({
+          appid: item.appid,
+          name: item.name || `App ${item.appid}`,
+          coverUrl: coverUrl(item.assets) || storeCapsule(item.appid),
+          originalFen: originalFenOf(item),
+          owned: Boolean(item.user_filter_failure?.already_owned),
+          storeUrl: `https://store.steampowered.com/app/${item.appid}`,
+        });
+      }
+    }
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      items.push({
+        appid: id,
+        name: `App ${id}`,
+        coverUrl: storeCapsule(id),
+        originalFen: null,
+        owned: false,
+        storeUrl: `https://store.steampowered.com/app/${id}`,
+      });
+    }
+    items.sort((a, b) => {
+      if (a.owned !== b.owned) return a.owned ? -1 : 1;
+      return a.name.localeCompare(b.name, "zh");
+    });
+    return {
+      items,
+      error: auth.token ? null : "没有登录 token，无法判断哪些 DLC 已购买。",
+    };
+  } catch {
+    return { items: [], error: "DLC 列表读取失败。" };
+  }
+}
 
 const REVIEW_LABEL_ZH: Record<string, string> = {
   "Overwhelmingly Positive": "好评如潮",
@@ -195,6 +386,8 @@ export type SteamGamePage = {
   playtime2WeeksMin: number;
   storeUrl: string;
   review: SteamReviewSummary | null;
+  dlc: SteamDlcRow[];
+  dlcError: string | null;
   achievements: SteamAchievement[] | null;
   achievementError: string | null;
 };
@@ -429,6 +622,29 @@ function tokenStillGood(token: string): boolean {
   const exp = jwtExp(token);
   if (exp == null) return true;
   return exp > Math.floor(Date.now() / 1000) + 120;
+}
+
+async function steamAccessJson(
+  path: string,
+  accessToken: string,
+  input: object,
+): Promise<unknown> {
+  const url = new URL(`https://api.steampowered.com/${path}`);
+  url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("input_json", JSON.stringify(input));
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store" });
+  } catch {
+    throw new Error("连不上 Steam，请检查网络");
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("家庭库 token 无效或已过期");
+  }
+  if (!res.ok) {
+    throw new Error(`Steam 请求失败（${res.status}）`);
+  }
+  return res.json();
 }
 
 async function steamAccessGet(
@@ -983,13 +1199,15 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
     ...ownedGames.map((g) => g.appid),
     ...familySource.map((g) => g.appid),
   ];
-  const [extras, progress] = await Promise.all([
+  const [extras, progress, dlcByParent] = await Promise.all([
     fetchStoreExtras(extraIds),
     fetchAchievementProgress(steamid, extraIds),
+    fetchDlcByParent(steamid, [...ownedIds]),
   ]);
 
   const toRow = (g: OwnedGame): SteamGameRow => {
     const extra = extras.get(g.appid);
+    const dlcPrices = ownedIds.has(g.appid) ? dlcByParent.get(g.appid) ?? [] : undefined;
     return withProgress(
       {
         appid: g.appid,
@@ -998,7 +1216,8 @@ async function fetchSteamPlayerLive(): Promise<SteamPlayerPage> {
         playtimeForeverMin: g.playtime_forever ?? 0,
         playtime2WeeksMin: g.playtime_2weeks ?? 0,
         price: extra?.price ?? null,
-        originalFen: extra?.originalFen ?? null,
+        originalFen: addFen(extra?.originalFen, ownedDlcFenSum(dlcPrices)),
+        dlcPrices,
         achUnlocked: null,
         achTotal: null,
       },
@@ -1236,6 +1455,8 @@ async function gamePageFromBackup(appid: number): Promise<SteamGamePage | null> 
     playtime2WeeksMin: row.playtime2WeeksMin,
     storeUrl: `https://store.steampowered.com/app/${appid}`,
     review: null,
+    dlc: [],
+    dlcError: "当前是本地备份，DLC 列表需连上 Steam 后刷新。",
     achievements: null,
     achievementError: "当前是本地备份，成就和商店详情需连上 Steam 后刷新。",
   };
@@ -1243,7 +1464,7 @@ async function gamePageFromBackup(appid: number): Promise<SteamGamePage | null> 
 
 async function fetchSteamGameLive(appid: number): Promise<SteamGamePage> {
   const steamid = await resolveSteamId();
-  const [storeData, reviewFallback, ownedRaw, recentRaw, familyLib, ach] = await Promise.all([
+  const [storeData, reviewFallback, ownedRaw, recentRaw, familyLib, ach, dlc] = await Promise.all([
     steamWebGet("IStoreBrowseService/GetItems/v1/", {
       ids: [{ appid }],
       context: CONTEXT,
@@ -1261,6 +1482,7 @@ async function fetchSteamGameLive(appid: number): Promise<SteamGamePage> {
     }).catch(() => null),
     fetchFamilyLibrary(steamid, false),
     fetchAchievements(steamid, appid),
+    fetchGameDlcList(steamid, appid),
   ]);
 
   const item = storeData.response?.store_items?.[0];
@@ -1278,19 +1500,31 @@ async function fetchSteamGameLive(appid: number): Promise<SteamGamePage> {
   );
   const playedName = owned?.name || recent?.name || family?.name;
   const name = item?.name || playedName || `App ${appid}`;
+  const baseFen = item ? originalFenOf(item) : family?.originalFen ?? null;
+  const dlcFen = owned
+    ? ownedDlcFenSum(
+        dlc.items.map((row) => ({
+          appid: row.appid,
+          originalFen: row.originalFen,
+          owned: row.owned,
+        })),
+      )
+    : undefined;
   return {
     appid,
     name,
     coverUrl: coverUrl(item?.assets) || family?.coverUrl || storeCapsule(appid),
     description: item?.basic_info?.short_description?.trim() || null,
     price: item ? priceLabel(item) : family?.price || null,
-    originalFen: item ? originalFenOf(item) : family?.originalFen ?? null,
+    originalFen: addFen(baseFen, dlcFen),
     fromOwned: Boolean(owned),
     fromFamily: Boolean(family) && !owned,
     playtimeForeverMin: playedMin,
     playtime2WeeksMin: recent?.playtime_2weeks ?? 0,
     storeUrl: `https://store.steampowered.com/app/${appid}`,
     review: (item ? reviewFromStore(item) : null) || reviewFallback,
+    dlc: dlc.items,
+    dlcError: dlc.error,
     achievements: ach.items,
     achievementError: ach.error,
   };

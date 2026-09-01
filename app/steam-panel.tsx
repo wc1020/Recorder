@@ -10,7 +10,7 @@ import {
   type SteamGameRow,
 } from "@/lib/providers/steam";
 import { buildGameViews } from "@/lib/steam-views";
-import { formatBackupTime, formatFenLabel, formatHours, formatYuan } from "@/lib/steam-format";
+import { formatBackupTime, formatFenLabel, formatHours, formatYuan, gamePriceFen } from "@/lib/steam-format";
 import { ProviderNotConfiguredError } from "@/lib/providers";
 import { formatRating, statusLabel } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -44,7 +44,11 @@ export async function SteamPanel({
   try {
     const data = await getSteamPlayerPage({ live });
     const views = buildGameViews(data);
-    const paidByApp = await listPaidFen(views.library.map((g) => g.appid));
+    const priceAppids = [
+      ...views.library.map((g) => g.appid),
+      ...views.owned.flatMap((g) => (g.dlcPrices ?? []).map((d) => d.appid)),
+    ];
+    const paidByApp = await listPaidFen(priceAppids);
     const hideAppIds = [
       ...views.owned.map((g) => g.appid),
       ...views.family.map((g) => g.appid),
@@ -62,6 +66,7 @@ export async function SteamPanel({
       family: views.family.length,
       want: wantItems.length,
     };
+    const prices = ownedPriceTotals(views.owned, paidByApp);
 
     return (
       <>
@@ -81,19 +86,14 @@ export async function SteamPanel({
             <div>
               <h2 className="steam-name">{data.profile.name}</h2>
               <p className="steam-stats">
-                总时长 {formatHours(data.totalPlaytimeMin)} · 库存 {views.owned.length} 款
-                {views.family.length > 0
-                  ? ` · 家庭库 ${views.family.length} 款 ${formatHours(data.familyPlaytimeMin)}`
-                  : data.familyRecentPlaytimeMin > 0
-                    ? ` · 含家庭库近两周 ${formatHours(data.familyRecentPlaytimeMin)}`
-                    : ""}
+                总时长 {formatHours(data.totalPlaytimeMin)}
               </p>
-              {data.familyError ? <p className="muted">{data.familyError}</p> : null}
-              {(data.privateAppIds?.length ?? 0) > 0 ? (
-                <p className="muted">
-                  已排除 {data.privateAppIds.length} 款 Steam 私人游戏
+              {views.owned.length > 0 ? (
+                <p className="steam-stats">
+                  库存价值：{formatYuan(prices.paidTotal)} / {formatYuan(prices.originalTotal)}
                 </p>
               ) : null}
+              {data.familyError ? <p className="muted">{data.familyError}</p> : null}
               {data.cacheReason === "offline" ? (
                 <p className="muted">
                   当前是本地备份
@@ -251,7 +251,7 @@ function SteamList({
             <p className="card-title" title={game.name}>
               <span>{game.name}</span>
             </p>
-            <GameCardStats game={game} paidFen={paidByApp.get(game.appid) ?? null} />
+            <GameCardStats game={game} paidByApp={paidByApp} />
           </div>
         </Link>
       ))}
@@ -261,10 +261,10 @@ function SteamList({
 
 function GameCardStats({
   game,
-  paidFen,
+  paidByApp,
 }: {
   game: SteamGameRow;
-  paidFen: number | null;
+  paidByApp: Map<number, number>;
 }) {
   const achTotal = game.achTotal ?? null;
   const achUnlocked = game.achUnlocked ?? null;
@@ -275,8 +275,7 @@ function GameCardStats({
         ? "无"
         : "—";
   const achDone = achTotal != null && achTotal > 0 && achUnlocked === achTotal;
-  const originalFen = game.originalFen;
-  const paidShown = paidFen ?? originalFen;
+  const prices = gamePriceFen(game.appid, game.originalFen, game.dlcPrices, paidByApp);
 
   return (
     <dl className="card-stats">
@@ -295,11 +294,25 @@ function GameCardStats({
       <div className="card-stat">
         <dt>价格</dt>
         <dd>
-          {formatFenLabel(paidShown)} / {formatFenLabel(originalFen)}
+          {formatFenLabel(prices.paid)} / {formatFenLabel(prices.original)}
         </dd>
       </div>
     </dl>
   );
+}
+
+function ownedPriceTotals(
+  games: SteamGameRow[],
+  paidByApp: Map<number, number>,
+) {
+  let paidTotal = 0;
+  let originalTotal = 0;
+  for (const game of games) {
+    const prices = gamePriceFen(game.appid, game.originalFen, game.dlcPrices, paidByApp);
+    if (prices.paid != null) paidTotal += prices.paid;
+    if (prices.original != null) originalTotal += prices.original;
+  }
+  return { paidTotal, originalTotal };
 }
 
 function OwnedList({
@@ -316,29 +329,7 @@ function OwnedList({
       </p>
     );
   }
-  let paidTotal = 0;
-  for (const game of games) {
-    const fen = paidByApp.get(game.appid) ?? game.originalFen;
-    if (fen == null) continue;
-    paidTotal += fen;
-  }
-  const originalKnown = games.filter((g) => g.originalFen != null);
-  const originalTotal = originalKnown.reduce((sum, g) => sum + (g.originalFen ?? 0), 0);
-
-  return (
-    <>
-      <p className="price-summary">
-        购入总价 {formatYuan(paidTotal)}
-        {`（未填按原价，已填 ${paidByApp.size}/${games.length}）`}
-        {" · "}
-        原价总价 {formatYuan(originalTotal)}
-        {originalKnown.length < games.length
-          ? `（${originalKnown.length} 款有商店价）`
-          : ""}
-      </p>
-      <SteamList games={games} paidByApp={paidByApp} empty="" />
-    </>
-  );
+  return <SteamList games={games} paidByApp={paidByApp} empty="" />;
 }
 
 async function loadWantItems(hideAppIds: number[]) {

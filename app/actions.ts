@@ -134,4 +134,8 @@ export async function saveSteamPaidPrice(formData: FormData): Promise<void> {
 
   revalidatePath("/");
   revalidatePath(`/steam/${appid}`);
+  const parentAppid = Number(formData.get("parentAppid"));
+  if (Number.isInteger(parentAppid) && parentAppid > 0 && parentAppid !== appid) {
+    revalidatePath(`/steam/${parentAppid}`);
+  }
 }
