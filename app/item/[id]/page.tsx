@@ -12,12 +12,11 @@ import {
   collectionLabel,
   isMediaType,
   MANUAL_SOURCE,
-  STATUSES,
-  statusLabel,
   typeLabel,
 } from "@/lib/constants";
 import { extraLinks, factRows, parseExtra } from "@/lib/media-extra";
 import { prisma } from "@/lib/db";
+import { EntryDates } from "../../entry-dates";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +25,10 @@ export default async function ItemPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; err?: string }>;
 }) {
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, err } = await searchParams;
   const itemId = Number(id);
   if (!Number.isInteger(itemId) || itemId <= 0) notFound();
 
@@ -80,7 +79,7 @@ export default async function ItemPage({
             {facts.map((row) => (
               <div key={row.k} className="facts-row">
                 <dt>{row.k}</dt>
-                <dd>{row.v}</dd>
+                <dd title={row.title}>{row.v}</dd>
               </div>
             ))}
           </dl>
@@ -102,19 +101,19 @@ export default async function ItemPage({
         ) : null}
 
         {saved ? <p className="saved">已保存</p> : null}
+        {err === "dates" ? (
+          <p className="error">时间顺序不对：前面的不能晚于后面的。</p>
+        ) : null}
 
         <form className="entry-form" action={saveEntry}>
           <input type="hidden" name="itemId" value={item.id} />
-          <label>
-            状态
-            <select name="status" defaultValue={entry?.status ?? "wishlist"}>
-              {STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {statusLabel(s.value, item.type)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <EntryDates
+            type={item.type}
+            status={entry?.status ?? "wishlist"}
+            wishlistOn={entry?.wishlistOn ?? null}
+            startedOn={entry?.startedOn ?? null}
+            finishedOn={entry?.finishedOn ?? null}
+          />
           <label>
             评分
             <select name="rating" defaultValue={entry?.rating?.toString() ?? ""}>
@@ -129,14 +128,6 @@ export default async function ItemPage({
           <label>
             短评
             <textarea name="review" rows={4} defaultValue={entry?.review ?? ""} />
-          </label>
-          <label>
-            开始日期
-            <input type="date" name="startedOn" defaultValue={entry?.startedOn ?? ""} />
-          </label>
-          <label>
-            结束日期
-            <input type="date" name="finishedOn" defaultValue={entry?.finishedOn ?? ""} />
           </label>
           <button className="btn" type="submit">
             保存

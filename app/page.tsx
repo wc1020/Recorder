@@ -40,7 +40,7 @@ export default async function Home({
         <SteamPanel view={gameView} live={sp.live === "1"} />
       ) : null}
       {type === "movie" || type === "tv" || type === "book" ? (
-        <MediaList type={type} query={parseMediaListQuery(sp)} />
+        <MediaList type={type} query={parseMediaListQuery(sp, type)} />
       ) : null}
     </>
   );

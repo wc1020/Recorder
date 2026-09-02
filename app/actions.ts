@@ -4,10 +4,20 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   isMediaType,
-  isStatus,
+  isStatusFor,
   MANUAL_SOURCE,
   type MediaType,
 } from "@/lib/constants";
+import {
+  applyStatusDate,
+  dateOrderError,
+  entryDateFields,
+  isDateInput,
+  parseDateInput,
+  todayLocal,
+  type EntryDateKey,
+  type EntryDates,
+} from "@/lib/entry-dates";
 import { prisma } from "@/lib/db";
 import { mediaPageHref } from "@/lib/list-href";
 import { getProvider, ProviderNotConfiguredError, type ItemSnapshot } from "@/lib/providers";
@@ -43,7 +53,7 @@ export async function addItem(
     });
     await prisma.entry.upsert({
       where: { itemId: item.id },
-      create: { itemId: item.id, status: "wishlist" },
+      create: { itemId: item.id, status: "wishlist", wishlistOn: todayLocal() },
       update: {},
     });
     itemId = item.id;
@@ -67,11 +77,38 @@ export async function saveEntry(formData: FormData): Promise<void> {
   const statusRaw = String(formData.get("status") ?? "");
   const ratingRaw = String(formData.get("rating") ?? "");
   const review = String(formData.get("review") ?? "").trim() || null;
-  const startedOn = String(formData.get("startedOn") ?? "").trim() || null;
-  const finishedOn = String(formData.get("finishedOn") ?? "").trim() || null;
 
-  if (!Number.isInteger(itemId) || itemId <= 0 || !isStatus(statusRaw)) {
+  if (!Number.isInteger(itemId) || itemId <= 0) {
     throw new Error("参数无效");
+  }
+
+  const item = await prisma.item.findUnique({
+    where: { id: itemId },
+    select: { type: true, entry: true },
+  });
+  if (!item || !isStatusFor(item.type, statusRaw)) {
+    throw new Error("参数无效");
+  }
+
+  const rawWishlist = String(formData.get("wishlistOn") ?? "");
+  const rawStarted = String(formData.get("startedOn") ?? "");
+  const rawFinished = String(formData.get("finishedOn") ?? "");
+  if (!isDateInput(rawWishlist) || !isDateInput(rawStarted) || !isDateInput(rawFinished)) {
+    redirect(`/item/${itemId}?err=dates`);
+  }
+
+  const shown = new Set(entryDateFields(item.type, statusRaw).map((f) => f.key));
+  const prev = item.entry;
+  const pick = (key: EntryDateKey, raw: string) =>
+    shown.has(key) ? parseDateInput(raw) : (prev?.[key] ?? null);
+  let dates: EntryDates = {
+    wishlistOn: pick("wishlistOn", rawWishlist),
+    startedOn: pick("startedOn", rawStarted),
+    finishedOn: pick("finishedOn", rawFinished),
+  };
+  dates = applyStatusDate(item.type, prev?.status ?? null, statusRaw, dates);
+  if (dateOrderError(item.type, dates, statusRaw)) {
+    redirect(`/item/${itemId}?err=dates`);
   }
 
   let rating: number | null = null;
@@ -90,15 +127,17 @@ export async function saveEntry(formData: FormData): Promise<void> {
       status: statusRaw,
       rating,
       review,
-      startedOn,
-      finishedOn,
+      wishlistOn: dates.wishlistOn,
+      startedOn: dates.startedOn,
+      finishedOn: dates.finishedOn,
     },
     update: {
       status: statusRaw,
       rating,
       review,
-      startedOn,
-      finishedOn,
+      wishlistOn: dates.wishlistOn,
+      startedOn: dates.startedOn,
+      finishedOn: dates.finishedOn,
     },
   });
 
@@ -189,7 +228,7 @@ export async function addManualItem(
     },
   });
   await prisma.entry.create({
-    data: { itemId: item.id, status: "wishlist" },
+    data: { itemId: item.id, status: "wishlist", wishlistOn: todayLocal() },
   });
   revalidatePath("/");
   revalidatePath("/search");

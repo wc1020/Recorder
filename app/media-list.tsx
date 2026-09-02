@@ -10,7 +10,7 @@ import {
   type MediaType,
 } from "@/lib/constants";
 import { mediaPageHref, mediaSortOf, type MediaListQuery } from "@/lib/list-href";
-import { cardSubtitle, itemGenres, parseExtra } from "@/lib/media-extra";
+import { cardSubtitle, itemGenres, movieCardFacts, parseExtra } from "@/lib/media-extra";
 import { prisma } from "@/lib/db";
 
 function sortItems<T extends { createdAt: Date; year: number | null; entry: { rating: number | null } | null }>(
@@ -51,6 +51,14 @@ function ItemGrid({
       {items.map((item) => {
         const extra = parseExtra(item.extraJson);
         const sub = cardSubtitle(type, item.year, extra);
+        const statusText = item.entry
+          ? [
+              statusLabel(item.entry.status, type),
+              item.entry.rating != null ? formatRating(item.entry.rating) : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : "—";
         return (
           <Link key={item.id} href={`/item/${item.id}`} className="card">
             <Cover url={item.coverUrl} title={item.title} />
@@ -58,16 +66,37 @@ function ItemGrid({
               <p className="card-title" title={item.title}>
                 <span>{item.title}</span>
               </p>
-              {sub ? <p className="card-sub">{sub}</p> : null}
-              <p className="card-meta">
-                {item.entry ? statusLabel(item.entry.status, type) : ""}
-                {item.entry?.rating != null ? ` · ${formatRating(item.entry.rating)}` : ""}
-              </p>
-              {item.entry?.review ? (
-                <p className="card-review" title={item.entry.review}>
-                  {item.entry.review}
-                </p>
-              ) : null}
+              {type === "movie" || type === "tv" ? (
+                <dl className="card-stats">
+                  {movieCardFacts(type, item.year, extra).map((row) => (
+                    <div key={row.k} className="card-stat">
+                      <dt>{row.k}</dt>
+                      <dd title={row.title ?? (row.v !== "—" ? row.v : undefined)}>{row.v}</dd>
+                    </div>
+                  ))}
+                  <div className="card-stat">
+                    <dt>状态</dt>
+                    <dd title={statusText !== "—" ? statusText : undefined}>{statusText}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <>
+                  {sub.text ? (
+                    <p className="card-sub" title={sub.title}>
+                      {sub.text}
+                    </p>
+                  ) : null}
+                  <p className="card-meta">
+                    {item.entry ? statusLabel(item.entry.status, type) : ""}
+                    {item.entry?.rating != null ? ` · ${formatRating(item.entry.rating)}` : ""}
+                  </p>
+                  {item.entry?.review ? (
+                    <p className="card-review" title={item.entry.review}>
+                      {item.entry.review}
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
           </Link>
         );

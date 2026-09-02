@@ -475,6 +475,9 @@ button.filter {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .card-stat-done {

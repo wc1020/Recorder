@@ -14,7 +14,7 @@ import {
 import {
   collectionLabel,
   isMediaType,
-  STATUSES,
+  statusesFor,
   statusLabel,
 } from "@/lib/constants";
 
@@ -51,13 +51,16 @@ function SubNav() {
     );
   }
 
-  const q = parseMediaListQuery({
-    status: sp.get("status"),
-    sort: sp.get("sort"),
-    genre: sp.get("genre"),
-    list: sp.get("list"),
-    view: sp.get("view"),
-  });
+  const q = parseMediaListQuery(
+    {
+      status: sp.get("status"),
+      sort: sp.get("sort"),
+      genre: sp.get("genre"),
+      list: sp.get("list"),
+      view: sp.get("view"),
+    },
+    type,
+  );
   const onLists = q.view === "lists" || Boolean(q.list);
   const sort = q.sort;
   return (
@@ -68,7 +71,7 @@ function SubNav() {
       >
         全部
       </Link>
-      {STATUSES.map((s) => (
+      {statusesFor(type).map((s) => (
         <Link
           key={s.value}
           href={mediaPageHref(type, { status: s.value, sort })}

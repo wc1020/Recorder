@@ -1,4 +1,4 @@
-import { extraJsonOf } from "@/lib/media-extra";
+import { extraJsonOf, formatGenres, localizeGenre } from "@/lib/media-extra";
 import type { ItemSnapshot, Provider, SearchHit } from "./types";
 import { requireEnv, yearFromDate } from "./types";
 
@@ -105,14 +105,14 @@ async function loadGenreMap(kind: "movie" | "tv"): Promise<Map<number, string>> 
   let map = genreCache[kind];
   if (!map) {
     const data = (await tmdbGet(`/genre/${kind}/list`, {})) as { genres?: TmdbGenre[] };
-    map = new Map((data.genres ?? []).map((g) => [g.id, g.name]));
+    map = new Map((data.genres ?? []).map((g) => [g.id, localizeGenre(g.name)]));
     genreCache[kind] = map;
   }
   return map;
 }
 
 function searchSubtitle(genres: string[], original: string | null): string | null {
-  const parts = [genres.slice(0, 3).join(" / ") || null, original].filter(Boolean);
+  const parts = [formatGenres(genres).text || null, original].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }
 
@@ -161,7 +161,7 @@ export const tmdbProvider: Provider = {
       coverUrl: posterUrl(movie.poster_path),
       description: movie.overview || null,
       extraJson: extraJsonOf({
-        genres: namesOf(movie.genres),
+        genres: namesOf(movie.genres).map(localizeGenre),
         directors,
         cast: namesOf(movie.credits?.cast, 6),
         countries: countryNames(movie.production_countries),
@@ -215,7 +215,7 @@ export const tmdbTvProvider: Provider = {
       coverUrl: posterUrl(show.poster_path),
       description: show.overview || null,
       extraJson: extraJsonOf({
-        genres: namesOf(show.genres),
+        genres: namesOf(show.genres).map(localizeGenre),
         creators: namesOf(show.created_by),
         cast: namesOf(show.credits?.cast, 6),
         countries: countryNames(show.production_countries, show.origin_country),

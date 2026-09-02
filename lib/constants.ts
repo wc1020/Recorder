@@ -24,6 +24,28 @@ export function isStatus(value: string): value is Status {
   return STATUSES.some((s) => s.value === value);
 }
 
+/** 电影没有「在看」；电视剧 / 图书 / 游戏仍是四个状态。 */
+export function statusesFor(type: string) {
+  if (type === "movie") {
+    return STATUSES.filter((s) => s.value !== "in_progress");
+  }
+  return STATUSES;
+}
+
+export function isStatusFor(type: string, value: string): value is Status {
+  return statusesFor(type).some((s) => s.value === value);
+}
+
+/** 详情下拉：按类型列出可选状态；旧数据不在列表里时仍带上当前值，方便改掉。 */
+export function statusOptionsFor(type: string, current?: string | null) {
+  const allowed = statusesFor(type);
+  if (current && isStatus(current) && !isStatusFor(type, current)) {
+    const extra = STATUSES.find((s) => s.value === current);
+    return extra ? [...allowed, extra] : allowed;
+  }
+  return allowed;
+}
+
 export function typeLabel(type: string): string {
   return MEDIA_TYPES.find((t) => t.value === type)?.label ?? type;
 }

@@ -34,6 +34,7 @@ model Entry {
   status     String
   rating     Int?
   review     String?
+  wishlistOn String?  @map("wishlist_on")
   startedOn  String?  @map("started_on")
   finishedOn String?  @map("finished_on")
   tags       String?
