@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties } from "react";
 import { isMediaType, MEDIA_TYPES, type MediaType } from "@/lib/constants";
+import { typeListHref } from "@/lib/list-href";
 
 const TYPE_ICONS: Record<MediaType, string> = {
   movie: "/icons/film-reel.svg",
@@ -22,6 +23,7 @@ function currentNav(pathname: string, raw: string): "home" | MediaType | null {
 
 export function TypeNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const nav = currentNav(pathname, useSearchParams().get("type") ?? "");
 
   return (
@@ -39,6 +41,13 @@ export function TypeNav() {
           key={t.value}
           href={`/?type=${t.value}`}
           className={t.value === nav ? "tab active" : "tab"}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+              return;
+            }
+            e.preventDefault();
+            router.push(typeListHref(t.value));
+          }}
         >
           <span
             className="tab-icon"

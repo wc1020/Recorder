@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import type { SteamPlayerPage, SteamProfile, SteamXp } from "./providers/steam";
+import type { SteamGamePage, SteamPlayerPage, SteamProfile, SteamXp } from "./providers/steam";
 
 const FILE = path.join(process.cwd(), "local", "steam-cache.json");
 
@@ -10,6 +10,7 @@ export type SteamBackup = {
   savedAt: string;
   player: SteamPlayerPage;
   perfect: SteamPerfectItem[] | null;
+  games?: Record<string, SteamGamePage>;
 };
 
 let memory: SteamBackup | null = null;
@@ -48,7 +49,38 @@ export async function saveSteamPlayerBackup(player: SteamPlayerPage): Promise<vo
     savedAt: new Date().toISOString(),
     player: stripLiveFlags(player),
     perfect: prev?.perfect ?? null,
+    games: mergeGameDetails(prev?.games, player),
   });
+}
+
+export async function saveSteamGameBackup(page: SteamGamePage): Promise<void> {
+  const prev = await loadSteamBackup();
+  if (!prev) return;
+  await writeBackup({
+    ...prev,
+    games: { ...prev.games, [String(page.appid)]: page },
+  });
+}
+
+function mergeGameDetails(
+  prev: Record<string, SteamGamePage> | undefined,
+  player: SteamPlayerPage,
+): Record<string, SteamGamePage> | undefined {
+  if (!prev) return undefined;
+  const next = { ...prev };
+  for (const g of [...player.owned, ...player.family, ...player.recentlyPlayed]) {
+    const d = next[String(g.appid)];
+    if (!d) continue;
+    next[String(g.appid)] = {
+      ...d,
+      name: g.name || d.name,
+      playtimeForeverMin: g.playtimeForeverMin,
+      playtime2WeeksMin: g.playtime2WeeksMin,
+      price: g.price ?? d.price,
+      originalFen: g.originalFen ?? d.originalFen,
+    };
+  }
+  return next;
 }
 
 export async function saveSteamPerfectBackup(items: SteamPerfectItem[]): Promise<void> {

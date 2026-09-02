@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BackLink } from "./back-link";
 import { GAME_VIEWS, gamePageHref, parseGameView } from "@/lib/game-href";
+import { typeListHref } from "@/lib/list-href";
 import { isMediaType, isStatus, STATUSES, statusLabel } from "@/lib/constants";
-
 function SubNav() {
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -61,8 +62,12 @@ function SubNav() {
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const [gameBack, setGameBack] = useState("/?type=game");
+  useEffect(() => {
+    setGameBack(typeListHref("game"));
+  }, [pathname]);
   const canBack = pathname.startsWith("/item/") || pathname.startsWith("/steam/");
-  const backHref = pathname.startsWith("/steam/") ? "/?type=game" : "/";
+  const backHref = pathname.startsWith("/steam/") ? gameBack : "/";
   const backIcon = (
     <>
       <span className="header-back-icon" aria-hidden />
@@ -84,9 +89,7 @@ export function SiteHeader() {
         )}
       </div>
       <div className="header-main">
-        <Link href="/" className="logo">
-          ProjectM
-        </Link>
+        <span className="logo">ProjectM</span>
         <SubNav />
         <Link href="/search" className="header-search" title="搜索">
           <span className="header-search-icon" aria-hidden />

@@ -248,7 +248,7 @@ npx next dev -H 0.0.0.0
 1. 首页能打开，能切换电影 / 电视剧 / 图书 / 游戏。
 2. 配置了对应 Key 后：打开「搜索」，能搜到真实结果，可加入。
 3. 加入后刷新仍在（数据在 `local/dev.db`）。
-4. 游戏页：填了 `STEAM_STEAMID` 且资料公开时，能看到库存 / 最近游玩等（第一次会请求 Steam，并写入 `local/steam-cache.json`）。
+4. 游戏页：填了 `STEAM_STEAMID` 且资料公开时，能看到库存 / 最近游玩等。本地还没有备份时会请求 Steam，并写入 `local/steam-cache.json`；之后默认读这份备份。
 
 ---
 
@@ -260,7 +260,8 @@ npx next dev -H 0.0.0.0
 |------|------|
 | `.env` | API Key、Steam 令牌 |
 | `dev.db` | 你的条目和打分短评 |
-| `steam-cache.json` | Steam 列表备份 |
+| `steam-cache.json` | Steam 资料、库存、完美、游戏详情备份 |
+| `snapshots/` | 自动滚动备份：`dev.db` + Steam 备份，有更新才写，最多 5 份 |
 
 备份：把 `local` 拷到 U 盘或网盘（不要公开分享）。
 

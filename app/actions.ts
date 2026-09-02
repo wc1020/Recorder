@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { isMediaType, isStatus } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { getProvider, ProviderNotConfiguredError } from "@/lib/providers";
-import { refreshSteamProfileLive } from "@/lib/providers/steam";
+import { getSteamGamePage, getSteamPlayerPage, refreshSteamProfileLive } from "@/lib/providers/steam";
+import { loadSteamBackup } from "@/lib/steam-cache";
+import { loadLocalEnv } from "@/lib/load-local-env";
 import { savePaidFen } from "@/lib/steam-paid";
 
 export async function addItem(
@@ -143,5 +145,26 @@ export async function saveSteamPaidPrice(formData: FormData): Promise<void> {
 
 export async function refreshSteamProfile(): Promise<void> {
   await refreshSteamProfileLive();
+  revalidatePath("/");
+}
+
+/** 空闲超时或以后别的自动更新入口：有备份才拉网，失败留下一份。 */
+export async function refreshSteamOnIdle(detailAppid?: number): Promise<void> {
+  loadLocalEnv({ reload: true });
+  const backup = await loadSteamBackup();
+  if (!backup) return;
+  try {
+    await getSteamPlayerPage({ live: true });
+  } catch {
+    /* 连不上就继续用备份 */
+  }
+  if (detailAppid && Number.isInteger(detailAppid) && detailAppid > 0) {
+    try {
+      await getSteamGamePage(detailAppid, { live: true });
+    } catch {
+      /* 详情失败也不挡列表备份 */
+    }
+    revalidatePath(`/steam/${detailAppid}`);
+  }
   revalidatePath("/");
 }

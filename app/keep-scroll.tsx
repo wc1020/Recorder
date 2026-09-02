@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-
+import { rememberHomeList } from "@/lib/list-href";
 function scrollKey(pathname: string, search: string): string {
   const sp = new URLSearchParams(search);
   sp.delete("live");
@@ -13,8 +13,19 @@ function scrollKey(pathname: string, search: string): string {
 
 export function KeepScroll() {
   const pathname = usePathname();
-  const search = useSearchParams().toString();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
   const key = scrollKey(pathname, search);
+
+  useEffect(() => {
+    if (pathname === "/") {
+      rememberHomeList({
+        type: searchParams.get("type"),
+        status: searchParams.get("status"),
+        view: searchParams.get("view"),
+      });
+    }
+  }, [pathname, search, searchParams]);
 
   useEffect(() => {
     const raw = sessionStorage.getItem(key);

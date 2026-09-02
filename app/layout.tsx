@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { IdleRefresh } from "./idle-refresh";
 import { KeepScroll } from "./keep-scroll";
 import { SiteHeader } from "./site-header";
 import { TypeNav } from "./type-nav";
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <Suspense fallback={null}>
           <KeepScroll />
+          <IdleRefresh />
         </Suspense>
         <div className="site-app">
           <Suspense fallback={<header className="site-header" />}>

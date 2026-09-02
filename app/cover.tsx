@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 const CDN = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps";
+const memory = new Map<number, string>();
 
 function uniq(urls: (string | null | undefined)[]): string[] {
   const out: string[] = [];
@@ -22,16 +23,28 @@ function steamCdnCovers(appid: number, extra?: string | null): string[] {
   ]);
 }
 
-function nextCover(src: string): string | null {
-  const appMatch = src.match(/\/apps\/(\d+)\//);
-  if (!appMatch) return null;
-  const chain = steamCdnCovers(Number(appMatch[1]));
-  const i = chain.findIndex((u) => src === u || src.startsWith(`${u}?`));
-  if (i >= 0 && i + 1 < chain.length) return chain[i + 1];
-  if (src.includes("library_600x900") && !src.includes("store_item_assets")) {
-    return chain[0];
+function coverKey(appid: number): string {
+  return `pm-cover:${appid}`;
+}
+
+function rememberedCover(appid: number): string | null {
+  const hit = memory.get(appid);
+  if (hit) return hit;
+  if (typeof localStorage === "undefined") return null;
+  try {
+    return localStorage.getItem(coverKey(appid));
+  } catch {
+    return null;
   }
-  return null;
+}
+
+function rememberCover(appid: number, src: string): void {
+  memory.set(appid, src);
+  try {
+    localStorage.setItem(coverKey(appid), src);
+  } catch {
+    /* 配额满了就只靠内存 */
+  }
 }
 
 export function Cover({
@@ -46,14 +59,18 @@ export function Cover({
   size?: "sm" | "md" | "lg" | "wide";
 }) {
   const chain = uniq(appid ? steamCdnCovers(appid, url) : [url]);
-  const chainKey = chain.join("\n");
-  const [src, setSrc] = useState<string | null>(chain[0] ?? null);
+  const [src, setSrc] = useState<string | null>(() => {
+    if (appid != null) return rememberedCover(appid) ?? chain[0] ?? null;
+    return chain[0] ?? null;
+  });
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    setSrc(chain[0] ?? null);
+  useLayoutEffect(() => {
+    const next =
+      appid != null ? (rememberedCover(appid) ?? chain[0] ?? null) : (chain[0] ?? null);
+    setSrc(next);
     setFailed(false);
-  }, [chainKey]);
+  }, [appid, url]);
 
   const cls = `cover cover-${size}`;
   if (!src || failed) {
@@ -70,10 +87,12 @@ export function Cover({
       className={cls}
       src={src}
       alt={title}
+      onLoad={() => {
+        if (appid != null) rememberCover(appid, src);
+      }}
       onError={() => {
         const i = chain.findIndex((u) => src === u || src.startsWith(`${u}?`));
-        const fromChain = i >= 0 ? chain[i + 1] : undefined;
-        const fallback = fromChain || nextCover(src);
+        const fallback = i >= 0 ? chain[i + 1] : undefined;
         if (fallback && fallback !== src) {
           setSrc(fallback);
           return;

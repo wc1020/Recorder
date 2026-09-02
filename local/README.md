@@ -15,6 +15,7 @@
 |------|--------|
 | `.env` | API Key / Steam 令牌 |
 | `dev.db` | 你的电影、书、游戏记录 |
-| `steam-cache.json` | Steam 列表备份 |
+| `steam-cache.json` | Steam 资料、库存、完美、游戏详情备份 |
+| `snapshots/` | 自动滚动备份（有更新才写，最多 5 份） |
 
 第一次从零开始、没有这只文件夹时：按仓库里的 [docs/DEPLOY.md](../docs/DEPLOY.md) 做。或把 `.env.example` 复制为 `local/.env`，填上 Key，再执行 `npx prisma migrate deploy`。

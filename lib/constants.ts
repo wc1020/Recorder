@@ -41,3 +41,10 @@ export function formatRating(rating: number | null | undefined): string {
   if (rating == null) return "";
   return `${rating / 2} 星`;
 }
+
+/** 用户连续无操作这么久之后，才自动拉一次远程数据。 */
+export const IDLE_REFRESH_MS = 15 * 60 * 1000;
+
+/** 本地数据快照：间隔、最多留几份。 */
+export const SNAPSHOT_INTERVAL_MS = 2 * 60 * 60 * 1000;
+export const SNAPSHOT_KEEP = 5;

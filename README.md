@@ -64,12 +64,14 @@
 
 ![游戏详情](docs/screenshots/game-detail.png)
 
-第一次打开游戏页会请求 Steam，结果写进 `local/steam-cache.json`。之后切 tab 用这份备份；Steam 连不上时也用备份。改了 token 要再点 Update DB。
+有本地备份就只读备份；没有才拉一次 Steam 写入 `local/steam-cache.json`。之后切 tab、刷新页面都用这份备份。更新只在点 Update DB / 资料刷新，或连续 15 分钟没操作之后。Steam 连不上时也用备份。改了 token 要再点 Update DB。
 
 ## 原则
 
 - 只走 TMDB、Google Books、Steam；不爬、不抓包、不走非官方代理
 - 不镜像对方整库，只存你选中的快照和自己的记录
+- 任何对外数据本地都有一份备份；没网也能看和改已有记录
+- 默认不刷远程：用户点刷新、空闲 15 分钟、或本地还没有这份数据时才拉
 - 不做账号、社交、推荐
 - 代码保持直接：能一个模块说清的不要拆多层
 

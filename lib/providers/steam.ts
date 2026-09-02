@@ -3,6 +3,7 @@ import { ProviderNotConfiguredError, requireEnv } from "./types";
 import { loadLocalEnv } from "@/lib/load-local-env";
 import {
   loadSteamBackup,
+  saveSteamGameBackup,
   saveSteamPerfectBackup,
   saveSteamPlayerBackup,
   saveSteamProfileBackup,
@@ -1286,17 +1287,7 @@ export async function getSteamPlayerPage(opts?: {
 }): Promise<SteamPlayerPage> {
   const backup = await loadSteamBackup();
   if (!opts?.live && backup) {
-    const page = playerFromBackup(backup, "tab");
-    if (!page.xp) {
-      try {
-        const steamid = await resolveSteamId();
-        page.xp = await fetchSteamXp(steamid);
-        await saveSteamProfileBackup(page.profile, page.xp);
-      } catch {
-        /* 等级没有也不挡列表 */
-      }
-    }
-    return page;
+    return playerFromBackup(backup, "tab");
   }
   try {
     const data = await fetchSteamPlayerLive();
@@ -1582,13 +1573,22 @@ async function fetchAchievements(
   return { items, error: null };
 }
 
-export async function getSteamGamePage(appid: number): Promise<SteamGamePage> {
+export async function getSteamGamePage(
+  appid: number,
+  opts?: { live?: boolean },
+): Promise<SteamGamePage> {
   if (!Number.isInteger(appid) || appid <= 0) {
     throw new Error("无效的 Steam App ID");
   }
+  const backup = await loadSteamBackup();
+  const cached = backup?.games?.[String(appid)];
+  if (!opts?.live && cached) return cached;
   try {
-    return await fetchSteamGameLive(appid);
+    const data = await fetchSteamGameLive(appid);
+    await saveSteamGameBackup(data).catch(() => {});
+    return data;
   } catch (err) {
+    if (cached) return cached;
     const fallback = await gamePageFromBackup(appid);
     if (fallback) return fallback;
     throw err;
