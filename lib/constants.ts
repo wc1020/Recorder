@@ -42,6 +42,24 @@ export function formatRating(rating: number | null | undefined): string {
   return `${rating / 2} 星`;
 }
 
+export const MANUAL_SOURCE = "manual";
+
+export const MEDIA_SORTS = [
+  { value: "added", label: "加入时间" },
+  { value: "rating", label: "评分" },
+  { value: "year", label: "年份" },
+] as const;
+
+export type MediaSort = (typeof MEDIA_SORTS)[number]["value"];
+
+export function isMediaSort(value: string): value is MediaSort {
+  return MEDIA_SORTS.some((s) => s.value === value);
+}
+
+export function collectionLabel(type: string): string {
+  return type === "book" ? "书单" : "片单";
+}
+
 /** 用户连续无操作这么久之后，才自动拉一次远程数据。 */
 export const IDLE_REFRESH_MS = 15 * 60 * 1000;
 

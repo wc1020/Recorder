@@ -5,8 +5,19 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BackLink } from "./back-link";
 import { GAME_VIEWS, gamePageHref, parseGameView } from "@/lib/game-href";
-import { typeListHref } from "@/lib/list-href";
-import { isMediaType, isStatus, STATUSES, statusLabel } from "@/lib/constants";
+import {
+  lastMediaType,
+  mediaPageHref,
+  parseMediaListQuery,
+  typeListHref,
+} from "@/lib/list-href";
+import {
+  collectionLabel,
+  isMediaType,
+  STATUSES,
+  statusLabel,
+} from "@/lib/constants";
+
 function SubNav() {
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -40,34 +51,69 @@ function SubNav() {
     );
   }
 
-  const statusRaw = sp.get("status") ?? "";
-  const status = isStatus(statusRaw) ? statusRaw : undefined;
+  const q = parseMediaListQuery({
+    status: sp.get("status"),
+    sort: sp.get("sort"),
+    genre: sp.get("genre"),
+    list: sp.get("list"),
+    view: sp.get("view"),
+  });
+  const onLists = q.view === "lists" || Boolean(q.list);
+  const sort = q.sort;
   return (
     <nav className="header-subs" aria-label="分类">
-      <Link href={`/?type=${type}`} className={!status ? "header-sub active" : "header-sub"}>
+      <Link
+        href={mediaPageHref(type, { sort })}
+        className={!q.status && !onLists ? "header-sub active" : "header-sub"}
+      >
         全部
       </Link>
       {STATUSES.map((s) => (
         <Link
           key={s.value}
-          href={`/?type=${type}&status=${s.value}`}
-          className={status === s.value ? "header-sub active" : "header-sub"}
+          href={mediaPageHref(type, { status: s.value, sort })}
+          className={!onLists && q.status === s.value ? "header-sub active" : "header-sub"}
         >
           {statusLabel(s.value, type)}
         </Link>
       ))}
+      <Link
+        href={mediaPageHref(type, { view: "lists", sort })}
+        className={onLists ? "header-sub active" : "header-sub"}
+      >
+        {collectionLabel(type)}
+      </Link>
     </nav>
   );
 }
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const sp = useSearchParams();
   const [gameBack, setGameBack] = useState("/?type=game");
+  const [itemBack, setItemBack] = useState("/");
+  const [searchHref, setSearchHref] = useState("/search");
+
   useEffect(() => {
     setGameBack(typeListHref("game"));
-  }, [pathname]);
+    const raw = sp.get("type") ?? "";
+    const urlType = raw === "want" ? "game" : isMediaType(raw) ? raw : null;
+    const last = urlType ?? lastMediaType();
+    if (last) {
+      setItemBack(typeListHref(last));
+      setSearchHref(`/search?type=${last}`);
+    } else {
+      setItemBack("/");
+      setSearchHref("/search");
+    }
+  }, [pathname, sp]);
+
   const canBack = pathname.startsWith("/item/") || pathname.startsWith("/steam/");
-  const backHref = pathname.startsWith("/steam/") ? gameBack : "/";
+  const backHref = pathname.startsWith("/steam/")
+    ? gameBack
+    : pathname.startsWith("/item/")
+      ? itemBack
+      : "/";
   const backIcon = (
     <>
       <span className="header-back-icon" aria-hidden />
@@ -91,7 +137,7 @@ export function SiteHeader() {
       <div className="header-main">
         <span className="logo">ProjectM</span>
         <SubNav />
-        <Link href="/search" className="header-search" title="搜索">
+        <Link href={searchHref} className="header-search" title="搜索">
           <span className="header-search-icon" aria-hidden />
           <span className="sr-only">搜索</span>
         </Link>

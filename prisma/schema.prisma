@@ -21,6 +21,7 @@ model Item {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
   entry         Entry?
+  collections   CollectionItem[]
 
   @@unique([type, source, sourceId])
   @@map("items")
@@ -35,10 +36,32 @@ model Entry {
   review     String?
   startedOn  String?  @map("started_on")
   finishedOn String?  @map("finished_on")
+  tags       String?
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("entries")
+}
+
+model Collection {
+  id        Int              @id @default(autoincrement())
+  type      String
+  name      String
+  createdAt DateTime         @default(now()) @map("created_at")
+  items     CollectionItem[]
+
+  @@map("collections")
+}
+
+model CollectionItem {
+  collectionId Int        @map("collection_id")
+  itemId       Int        @map("item_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  item         Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, itemId])
+  @@map("collection_items")
 }
 
 model SteamPaidPrice {

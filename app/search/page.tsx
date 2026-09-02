@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AddButton } from "../add-button";
 import { Cover } from "../cover";
+import { ManualAddForm } from "../manual-add-form";
+import { RememberType } from "../remember-type";
 import { isMediaType, MEDIA_TYPES, type MediaType } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { getProvider, ProviderNotConfiguredError } from "@/lib/providers";
@@ -33,21 +35,30 @@ export default async function SearchPage({
   }
 
   const source = getProvider(type).source;
+  const hitIds = hits.flatMap((h) => {
+    const id = h.sourceId;
+    return id.startsWith("ol:") ? [id, id.slice(3)] : [id];
+  });
   const existing =
-    hits.length === 0
+    hitIds.length === 0
       ? []
       : await prisma.item.findMany({
           where: {
             type,
-            source,
-            sourceId: { in: hits.map((h) => h.sourceId) },
+            ...(type === "book" ? {} : { source }),
+            sourceId: { in: hitIds },
           },
           select: { id: true, sourceId: true },
         });
-  const existingMap = new Map(existing.map((i) => [i.sourceId, i.id]));
+  const existingMap = new Map<string, number>();
+  for (const row of existing) {
+    existingMap.set(row.sourceId, row.id);
+    existingMap.set(`ol:${row.sourceId}`, row.id);
+  }
 
   return (
     <>
+      <RememberType type={type} />
       <h1>搜索</h1>
       <form className="search-form" action="/search" method="get">
         <select name="type" defaultValue={type}>
@@ -92,6 +103,13 @@ export default async function SearchPage({
           </div>
         );
       })}
+      {type !== "game" ? (
+        <section className="manual-add">
+          <h2>搜不到？手动添加</h2>
+          <p className="muted">自己填标题即可。没有远程资料，详情页不能刷新。</p>
+          <ManualAddForm type={type} title={!error && q && hits.length === 0 ? q : ""} />
+        </section>
+      ) : null}
     </>
   );
 }

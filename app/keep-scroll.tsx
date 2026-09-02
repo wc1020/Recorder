@@ -23,6 +23,9 @@ export function KeepScroll() {
         type: searchParams.get("type"),
         status: searchParams.get("status"),
         view: searchParams.get("view"),
+        sort: searchParams.get("sort"),
+        genre: searchParams.get("genre"),
+        list: searchParams.get("list"),
       });
     }
   }, [pathname, search, searchParams]);
