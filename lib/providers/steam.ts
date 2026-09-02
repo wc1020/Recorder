@@ -1230,13 +1230,13 @@ function playingAppId(gameid?: string): number | null {
 
 function profileFromSummary(
   steamid: string,
-  player: SummaryPlayer & { personaname: string },
+  player: SummaryPlayer,
   miniBg: { imageUrl: string | null; movieUrl: string | null },
   playingName: string | null,
 ): SteamProfile {
   const name = playingName?.trim() || null;
   return {
-    name: player.personaname,
+    name: player.personaname || steamid,
     profileUrl: player.profileurl || `https://steamcommunity.com/profiles/${steamid}`,
     avatarUrl: player.avatarfull || null,
     miniBackgroundUrl: miniBg.imageUrl,

@@ -12,9 +12,19 @@
 
 ## 熟手
 
-```bash
-npm install
+Windows 可直接跑脚本（会 `npm install`、建 `local/`、迁移数据库，再用 `npm.cmd` 避开 PowerShell 拦脚本）：
+
+```bat
+scripts\dev.cmd
 ```
+
+长期开着、少占资源用生产模式：
+
+```bat
+scripts\prod.cmd
+```
+
+也可以自己敲命令。先 `npm install`（PowerShell 若报禁止运行脚本，改用 `npm.cmd install`）。
 
 把 `.env.example` 复制为 `local/.env` 并填 Key（没有 `local` 就先建）：
 
@@ -222,7 +232,7 @@ npm run dev
 
 ### 可选：生产模式
 
-占用更少、更接近「部署」。先停掉 `npm run dev`，然后：
+占用更少、更接近「部署」。先停掉 `npm run dev`，然后跑 `scripts\prod.cmd`，或自己执行：
 
 ```bash
 npm run build
