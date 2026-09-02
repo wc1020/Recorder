@@ -6,6 +6,7 @@ import {
   saveEntry,
 } from "../../actions";
 import { Cover } from "../../cover";
+import { DeleteItemButton } from "../../delete-item-button";
 import { ItemRefreshButton } from "../../item-refresh-button";
 import { RememberType } from "../../remember-type";
 import {
@@ -79,7 +80,7 @@ export default async function ItemPage({
             {facts.map((row) => (
               <div key={row.k} className="facts-row">
                 <dt>{row.k}</dt>
-                <dd title={row.title}>{row.v}</dd>
+                <dd title={row.title ?? row.v}>{row.v}</dd>
               </div>
             ))}
           </dl>
@@ -133,6 +134,10 @@ export default async function ItemPage({
             保存
           </button>
         </form>
+
+        {item.type === "movie" || item.type === "tv" ? (
+          <DeleteItemButton itemId={item.id} title={item.title} />
+        ) : null}
 
         {item.type === "movie" || item.type === "tv" || item.type === "book" ? (
           <section className="collection-box">

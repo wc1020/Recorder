@@ -42,6 +42,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# 个人导出（豆伴等），勿提交
+/豆伴*.xlsx
+
 # sqlite
 *.db
 *.db-journal

@@ -51,11 +51,17 @@ export async function addItem(
       create: { ...itemFields(snap), type: snap.type, source: snap.source, sourceId: snap.sourceId },
       update: itemFields(snap),
     });
-    await prisma.entry.upsert({
+    const entry = await prisma.entry.upsert({
       where: { itemId: item.id },
       create: { itemId: item.id, status: "wishlist", wishlistOn: todayLocal() },
       update: {},
     });
+    if (entry.status === "wishlist" && !entry.wishlistOn) {
+      await prisma.entry.update({
+        where: { itemId: item.id },
+        data: { wishlistOn: todayLocal() },
+      });
+    }
     itemId = item.id;
   } catch (err) {
     const message =
@@ -144,6 +150,24 @@ export async function saveEntry(formData: FormData): Promise<void> {
   revalidatePath("/");
   revalidatePath(`/item/${itemId}`);
   redirect(`/item/${itemId}?saved=1`);
+}
+
+export async function deleteItem(formData: FormData): Promise<void> {
+  const itemId = Number(formData.get("itemId"));
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    throw new Error("参数无效");
+  }
+  const item = await prisma.item.findUnique({
+    where: { id: itemId },
+    select: { type: true },
+  });
+  if (!item || (item.type !== "movie" && item.type !== "tv")) {
+    throw new Error("只能删除电影或电视剧");
+  }
+  await prisma.item.delete({ where: { id: itemId } });
+  revalidatePath("/");
+  revalidatePath("/search");
+  redirect(mediaPageHref(item.type));
 }
 
 function itemFields(snap: ItemSnapshot) {

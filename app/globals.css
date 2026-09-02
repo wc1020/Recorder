@@ -268,12 +268,6 @@ button.filter {
   font: inherit;
 }
 
-.filter-count {
-  margin-left: 4px;
-  opacity: 0.7;
-  font-variant-numeric: tabular-nums;
-}
-
 .muted {
   color: var(--muted);
 }
@@ -417,6 +411,31 @@ button.filter {
   background: var(--bg);
 }
 
+.btn-danger {
+  color: var(--danger);
+  border-color: #e4c4c4;
+}
+
+.btn-danger:hover {
+  background: #f8e8e8;
+  color: var(--danger);
+}
+
+.item-delete {
+  margin-top: 12px;
+}
+
+.item-delete-hint {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.item-delete-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .card-body {
   padding: 8px 10px 12px;
   display: flex;
@@ -456,10 +475,10 @@ button.filter {
 }
 
 .card-stat {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  column-gap: 8px;
   align-items: baseline;
-  gap: 8px;
   font-size: 0.75rem;
   line-height: 1.35;
 }
@@ -467,22 +486,90 @@ button.filter {
 .card-stat dt {
   margin: 0;
   color: var(--muted);
-  flex-shrink: 0;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .card-stat dd {
+  grid-column: 2 / 4;
   margin: 0;
-  text-align: right;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.card-stat-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.card-stat-rating .stat-text {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rating-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  color: #c9a227;
+}
+
+.star {
+  position: relative;
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+
+.star svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.star-empty svg,
+.star-half svg:first-child {
+  fill: none;
+}
+
+.star-half-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  clip-path: inset(0 50% 0 0);
 }
 
 .card-stat-done {
   color: var(--accent);
   font-weight: 600;
+}
+
+/* Steam 卡：左标签右数值，各行右缘对齐。电影卡仍用上面的三列省略。 */
+.card-stats-game .card-stat {
+  display: flex;
+  justify-content: space-between;
+  column-gap: unset;
+  gap: 8px;
+}
+
+.card-stats-game .card-stat dt {
+  flex-shrink: 0;
+}
+
+.card-stats-game .card-stat dd {
+  grid-column: auto;
+  text-align: right;
 }
 
 .cover {
@@ -736,6 +823,20 @@ a.btn:hover {
   margin: 0 0 16px;
 }
 
+.list-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.list-count {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .media-select {
   display: inline-flex;
   align-items: center;
@@ -786,20 +887,25 @@ a.btn:hover {
 }
 
 .facts-row {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  column-gap: 8px;
   margin: 0 0 4px;
   font-size: 0.9rem;
 }
 
 .facts-row dt {
-  flex-shrink: 0;
-  width: 4em;
+  min-width: 0;
   color: var(--muted);
 }
 
 .facts-row dd {
+  grid-column: 2 / 4;
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-desc {

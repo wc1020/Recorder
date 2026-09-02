@@ -8,10 +8,16 @@ export function MediaToolbar({
   type,
   query,
   genres,
+  count,
+  q = "",
+  onQ,
 }: {
   type: MediaType;
   query: MediaListQuery;
   genres: string[];
+  count: number;
+  q?: string;
+  onQ?: (next: string) => void;
 }) {
   const router = useRouter();
   const sort = mediaSortOf(query);
@@ -19,6 +25,9 @@ export function MediaToolbar({
   function go(next: MediaListQuery) {
     router.push(mediaPageHref(type, next));
   }
+
+  const unit = type === "book" ? "本" : "部";
+  const showSearch = type === "movie" || type === "tv";
 
   return (
     <div className="media-toolbar">
@@ -28,7 +37,7 @@ export function MediaToolbar({
           value={sort}
           onChange={(e) => {
             const value = e.target.value;
-            go({ ...query, sort: value === "added" ? undefined : value });
+            go({ ...query, sort: value === "updated" ? undefined : value });
           }}
         >
           {MEDIA_SORTS.map((s) => (
@@ -55,6 +64,23 @@ export function MediaToolbar({
           ))}
         </select>
       </label>
+      <div className="list-end">
+        {showSearch ? (
+          <form className="search-form game-filter-inline" onSubmit={(e) => e.preventDefault()}>
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => onQ?.(e.target.value)}
+              placeholder="搜索当前列表"
+              aria-label="搜索当前列表"
+            />
+          </form>
+        ) : null}
+        <span className="list-count">
+          {count}
+          {unit}
+        </span>
+      </div>
     </div>
   );
 }

@@ -67,7 +67,7 @@ export function formatRating(rating: number | null | undefined): string {
 export const MANUAL_SOURCE = "manual";
 
 export const MEDIA_SORTS = [
-  { value: "added", label: "加入时间" },
+  { value: "updated", label: "更新时间" },
   { value: "rating", label: "评分" },
   { value: "year", label: "年份" },
 ] as const;

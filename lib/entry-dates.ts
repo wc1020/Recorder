@@ -20,6 +20,17 @@ export function todayLocal(): string {
   return `${y}-${m}-${day}`;
 }
 
+/** 想看 / 在看 / 看过三个日期里最晚的；都空则 null。 */
+export function latestEntryDate(
+  dates: Partial<EntryDates> | null | undefined,
+): string | null {
+  const vals = [dates?.wishlistOn, dates?.startedOn, dates?.finishedOn].filter(
+    (d): d is string => Boolean(d),
+  );
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => (a >= b ? a : b));
+}
+
 export function parseDateInput(raw: string): string | null {
   const s = raw.trim();
   if (!s) return null;

@@ -62,12 +62,13 @@ function SubNav() {
     type,
   );
   const onLists = q.view === "lists" || Boolean(q.list);
+  const onInbox = q.view === "inbox";
   const sort = q.sort;
   return (
     <nav className="header-subs" aria-label="分类">
       <Link
         href={mediaPageHref(type, { sort })}
-        className={!q.status && !onLists ? "header-sub active" : "header-sub"}
+        className={!q.status && !onLists && !onInbox ? "header-sub active" : "header-sub"}
       >
         全部
       </Link>
@@ -75,7 +76,7 @@ function SubNav() {
         <Link
           key={s.value}
           href={mediaPageHref(type, { status: s.value, sort })}
-          className={!onLists && q.status === s.value ? "header-sub active" : "header-sub"}
+          className={!onLists && !onInbox && q.status === s.value ? "header-sub active" : "header-sub"}
         >
           {statusLabel(s.value, type)}
         </Link>
@@ -86,6 +87,14 @@ function SubNav() {
       >
         {collectionLabel(type)}
       </Link>
+      {type === "movie" || type === "tv" ? (
+        <Link
+          href={mediaPageHref(type, { view: "inbox", sort })}
+          className={onInbox ? "header-sub active" : "header-sub"}
+        >
+          待整理
+        </Link>
+      ) : null}
     </nav>
   );
 }

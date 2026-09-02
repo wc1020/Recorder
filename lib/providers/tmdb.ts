@@ -12,10 +12,17 @@ type TmdbCredits = {
   crew?: { name?: string; job?: string }[];
 };
 
+type TmdbImage = {
+  file_path?: string;
+  iso_639_1?: string | null;
+  vote_average?: number;
+};
+
 type TmdbMovie = {
   id: number;
   title?: string;
   original_title?: string;
+  original_language?: string;
   release_date?: string;
   poster_path?: string | null;
   overview?: string;
@@ -26,6 +33,7 @@ type TmdbMovie = {
   spoken_languages?: TmdbLanguage[];
   imdb_id?: string | null;
   credits?: TmdbCredits;
+  images?: { posters?: TmdbImage[] };
 };
 
 type TmdbTv = {
@@ -56,6 +64,80 @@ const genreCache: { movie?: Map<number, string>; tv?: Map<number, string> } = {}
 
 function posterUrl(path: string | null | undefined): string | null {
   return path ? `${IMAGE_BASE}${path}` : null;
+}
+
+/** 产地 / 原语言 → TMDB 海报语言。英文留给最后 fallback。 */
+const COUNTRY_POSTER_LANG: Record<string, string> = {
+  CN: "zh",
+  HK: "zh",
+  TW: "zh",
+  JP: "ja",
+  KR: "ko",
+  FR: "fr",
+  DE: "de",
+  ES: "es",
+  MX: "es",
+  AR: "es",
+  IT: "it",
+  BR: "pt",
+  PT: "pt",
+  RU: "ru",
+  TH: "th",
+  IN: "hi",
+  SE: "sv",
+  DK: "da",
+  NO: "no",
+  NL: "nl",
+  PL: "pl",
+  CZ: "cs",
+  HU: "hu",
+  TR: "tr",
+  VN: "vi",
+  ID: "id",
+};
+
+function normPosterLang(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const c = code.toLowerCase();
+  if (c === "cn" || c.startsWith("zh")) return "zh";
+  return c;
+}
+
+function regionPosterLangs(movie: TmdbMovie): string[] {
+  const out: string[] = [];
+  const add = (lang: string | null) => {
+    if (!lang || out.includes(lang)) return;
+    out.push(lang);
+  };
+  add(normPosterLang(movie.original_language));
+  for (const country of movie.production_countries ?? []) {
+    add(normPosterLang(COUNTRY_POSTER_LANG[country.iso_3166_1]));
+  }
+  return out;
+}
+
+function bestPosterPath(posters: TmdbImage[] | undefined, lang: string | null): string | null {
+  const hits = (posters ?? []).filter(
+    (p) => p.file_path && (p.iso_639_1 ?? null) === lang,
+  );
+  if (!hits.length) return null;
+  hits.sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
+  return hits[0].file_path ?? null;
+}
+
+/** 先地区语言海报，没有再英文，再无字 / 默认。 */
+function moviePosterPath(movie: TmdbMovie): string | null {
+  const posters = movie.images?.posters;
+  for (const lang of regionPosterLangs(movie)) {
+    if (lang === "en") continue;
+    const path = bestPosterPath(posters, lang);
+    if (path) return path;
+  }
+  return (
+    bestPosterPath(posters, "en") ||
+    movie.poster_path ||
+    bestPosterPath(posters, null)
+  );
 }
 
 function apiKey(): string {
@@ -142,7 +224,7 @@ export const tmdbProvider: Provider = {
 
   async getDetail(sourceId: string): Promise<ItemSnapshot> {
     const movie = (await tmdbGet(`/movie/${encodeURIComponent(sourceId)}`, {
-      append_to_response: "credits",
+      append_to_response: "credits,images",
     })) as TmdbMovie;
     const title = movie.title || movie.original_title || "未命名";
     const originalTitle =
@@ -158,7 +240,7 @@ export const tmdbProvider: Provider = {
       title,
       originalTitle,
       year: yearFromDate(movie.release_date),
-      coverUrl: posterUrl(movie.poster_path),
+      coverUrl: posterUrl(moviePosterPath(movie)),
       description: movie.overview || null,
       extraJson: extraJsonOf({
         genres: namesOf(movie.genres).map(localizeGenre),

@@ -1,108 +1,46 @@
 import Link from "next/link";
-import { Cover } from "./cover";
 import { deleteCollection, createCollection } from "./actions";
-import { MediaToolbar } from "./media-toolbar";
+import { MediaResults } from "./media-results";
 import {
   collectionLabel,
-  formatRating,
-  statusLabel,
+  MANUAL_SOURCE,
   type MediaSort,
   type MediaType,
 } from "@/lib/constants";
 import { mediaPageHref, mediaSortOf, type MediaListQuery } from "@/lib/list-href";
-import { cardSubtitle, itemGenres, movieCardFacts, parseExtra } from "@/lib/media-extra";
+import { latestEntryDate } from "@/lib/entry-dates";
+import { itemGenres, parseExtra } from "@/lib/media-extra";
 import { prisma } from "@/lib/db";
 
-function sortItems<T extends { createdAt: Date; year: number | null; entry: { rating: number | null } | null }>(
-  items: T[],
-  sort: MediaSort,
-): T[] {
+type SortItem = {
+  year: number | null;
+  entry: {
+    rating: number | null;
+    wishlistOn: string | null;
+    startedOn: string | null;
+    finishedOn: string | null;
+  } | null;
+};
+
+function activityKey(item: SortItem): string {
+  return latestEntryDate(item.entry) ?? "";
+}
+
+function sortItems<T extends SortItem>(items: T[], sort: MediaSort): T[] {
+  const byActivity = (a: T, b: T) => activityKey(b).localeCompare(activityKey(a));
   if (sort === "rating") {
     return [...items].sort((a, b) => {
       const diff = (b.entry?.rating ?? -1) - (a.entry?.rating ?? -1);
-      return diff !== 0 ? diff : b.createdAt.getTime() - a.createdAt.getTime();
+      return diff !== 0 ? diff : byActivity(a, b);
     });
   }
   if (sort === "year") {
     return [...items].sort((a, b) => {
       const diff = (b.year ?? -1) - (a.year ?? -1);
-      return diff !== 0 ? diff : b.createdAt.getTime() - a.createdAt.getTime();
+      return diff !== 0 ? diff : byActivity(a, b);
     });
   }
-  return items;
-}
-
-function ItemGrid({
-  type,
-  items,
-}: {
-  type: MediaType;
-  items: {
-    id: number;
-    title: string;
-    year: number | null;
-    coverUrl: string | null;
-    extraJson: string | null;
-    entry: { status: string; rating: number | null; review: string | null } | null;
-  }[];
-}) {
-  return (
-    <div className="grid">
-      {items.map((item) => {
-        const extra = parseExtra(item.extraJson);
-        const sub = cardSubtitle(type, item.year, extra);
-        const statusText = item.entry
-          ? [
-              statusLabel(item.entry.status, type),
-              item.entry.rating != null ? formatRating(item.entry.rating) : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")
-          : "—";
-        return (
-          <Link key={item.id} href={`/item/${item.id}`} className="card">
-            <Cover url={item.coverUrl} title={item.title} />
-            <div className="card-body">
-              <p className="card-title" title={item.title}>
-                <span>{item.title}</span>
-              </p>
-              {type === "movie" || type === "tv" ? (
-                <dl className="card-stats">
-                  {movieCardFacts(type, item.year, extra).map((row) => (
-                    <div key={row.k} className="card-stat">
-                      <dt>{row.k}</dt>
-                      <dd title={row.title ?? (row.v !== "—" ? row.v : undefined)}>{row.v}</dd>
-                    </div>
-                  ))}
-                  <div className="card-stat">
-                    <dt>状态</dt>
-                    <dd title={statusText !== "—" ? statusText : undefined}>{statusText}</dd>
-                  </div>
-                </dl>
-              ) : (
-                <>
-                  {sub.text ? (
-                    <p className="card-sub" title={sub.title}>
-                      {sub.text}
-                    </p>
-                  ) : null}
-                  <p className="card-meta">
-                    {item.entry ? statusLabel(item.entry.status, type) : ""}
-                    {item.entry?.rating != null ? ` · ${formatRating(item.entry.rating)}` : ""}
-                  </p>
-                  {item.entry?.review ? (
-                    <p className="card-review" title={item.entry.review}>
-                      {item.entry.review}
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </Link>
-        );
-      })}
-    </div>
-  );
+  return [...items].sort(byActivity);
 }
 
 export async function MediaList({ type, query }: { type: MediaType; query: MediaListQuery }) {
@@ -129,10 +67,14 @@ export async function MediaList({ type, query }: { type: MediaType; query: Media
     return <p className="empty">没有这个{listName}。</p>;
   }
 
+  const inbox = query.view === "inbox";
   const all = collection
     ? collection.items.map((row) => row.item)
     : await prisma.item.findMany({
-        where: { type },
+        where: {
+          type,
+          source: inbox ? MANUAL_SOURCE : { not: MANUAL_SOURCE },
+        },
         include: { entry: true },
         orderBy: { createdAt: "desc" },
       });
@@ -165,20 +107,35 @@ export async function MediaList({ type, query }: { type: MediaType; query: Media
           </form>
         </div>
       ) : null}
-      <MediaToolbar type={type} query={query} genres={genres} />
-      {items.length === 0 ? (
-        <p className="empty">
-          {collection
-            ? `${listName}还是空的。在条目详情里加入。`
-            : (
-              <>
-                还没有记录。去 <Link href={`/search?type=${type}`}>搜索</Link> 加入，或手动添加。
-              </>
-            )}
-        </p>
-      ) : (
-        <ItemGrid type={type} items={items} />
-      )}
+      <MediaResults
+        type={type}
+        query={query}
+        genres={genres}
+        items={items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          originalTitle: item.originalTitle,
+          year: item.year,
+          coverUrl: item.coverUrl,
+          extraJson: item.extraJson,
+          entry: item.entry
+            ? { status: item.entry.status, rating: item.entry.rating, review: item.entry.review }
+            : null,
+        }))}
+        empty={
+          <p className="empty">
+            {collection
+              ? `${listName}还是空的。在条目详情里加入。`
+              : inbox
+                ? "没有待整理的条目。搜不到、手动添加的会出现在这里。"
+                : (
+                  <>
+                    还没有记录。去 <Link href={`/search?type=${type}`}>搜索</Link> 加入，或手动添加。
+                  </>
+                )}
+          </p>
+        }
+      />
     </>
   );
 }

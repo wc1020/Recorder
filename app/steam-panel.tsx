@@ -370,7 +370,7 @@ function GameCardStats({
   const prices = gamePriceFen(game.appid, game.originalFen, game.dlcPrices, paidByApp);
 
   return (
-    <dl className="card-stats">
+    <dl className="card-stats card-stats-game">
       <div className="card-stat">
         <dt>总时长</dt>
         <dd>{formatHours(game.playtimeForeverMin)}</dd>

@@ -44,8 +44,6 @@ export function joinNames(values: string[] | undefined, sep = " / "): string {
   return (values ?? []).filter(Boolean).join(sep);
 }
 
-const GENRE_SHOW_MAX = 3;
-
 /** TMDB 电视剧复合类型 zh-CN 经常不译，按常用中文补上。 */
 const GENRE_ZH: Record<string, string> = {
   "Sci-Fi & Fantasy": "科幻",
@@ -62,14 +60,13 @@ export function localizeGenre(name: string): string {
   return GENRE_ZH[name] ?? name;
 }
 
-/** 类型最多三个；再多加 / ...，full 给悬停看完整的。 */
+/** 完整用 / 拼起来；列表里标签占一格、内容占后两格，超出省略号。 */
 export function formatGenres(values: string[] | undefined): { text: string; full: string } {
   const list = (values ?? [])
     .map((g) => localizeGenre(g.trim()))
     .filter(Boolean);
   const full = list.join(" / ");
-  if (list.length <= GENRE_SHOW_MAX) return { text: full, full };
-  return { text: `${list.slice(0, GENRE_SHOW_MAX).join(" / ")} / ...`, full };
+  return { text: full, full };
 }
 
 export function itemGenres(type: MediaType, extra: MediaExtra): string[] {

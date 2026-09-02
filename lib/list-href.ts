@@ -28,12 +28,12 @@ function statusOk(status: string, type?: string): boolean {
 
 function encodeMediaState(q: MediaListQuery, type?: string): string {
   const sp = new URLSearchParams();
-  if (q.view === "lists") sp.set("view", "lists");
+  if (q.view === "lists" || q.view === "inbox") sp.set("view", q.view);
   if (q.list) sp.set("list", q.list);
-  if (q.status && statusOk(q.status, type) && q.view !== "lists" && !q.list) {
+  if (q.status && statusOk(q.status, type) && q.view !== "lists" && q.view !== "inbox" && !q.list) {
     sp.set("status", q.status);
   }
-  if (q.sort && isMediaSort(q.sort) && q.sort !== "added") sp.set("sort", q.sort);
+  if (q.sort && isMediaSort(q.sort) && q.sort !== "updated") sp.set("sort", q.sort);
   if (q.genre) sp.set("genre", q.genre);
   return sp.toString();
 }
@@ -48,7 +48,7 @@ export function parseMediaListQuery(
   },
   type?: string,
 ): MediaListQuery {
-  const view = sp.view === "lists" ? "lists" : undefined;
+  const view = sp.view === "lists" || sp.view === "inbox" ? sp.view : undefined;
   const list = sp.list?.trim() || undefined;
   return {
     view: list ? undefined : view,
@@ -109,7 +109,7 @@ export function mediaPageHref(type: MediaType, q: MediaListQuery = {}): string {
 }
 
 export function mediaSortOf(q: MediaListQuery): MediaSort {
-  return q.sort && isMediaSort(q.sort) ? q.sort : "added";
+  return q.sort && isMediaSort(q.sort) ? q.sort : "updated";
 }
 
 export function typeListHref(type: MediaType): string {
