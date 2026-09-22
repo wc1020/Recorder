@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: "个人媒体记录：电影、电视剧、图书、游戏",
 };
 
-const themeBootScript = `(function(){try{var k="projectm-theme";var t=localStorage.getItem(k);var ok={dark:1,light:1,red:1,orange:1,yellow:1,green:1,cyan:1,blue:1,violet:1};if(t&&ok[t])document.documentElement.setAttribute("data-theme",t);}catch(e){}})();`;
+const themeBootScript = `(function(){try{var k="projectm-theme";var t=localStorage.getItem(k);if(!t)return;var ok={film:1,paper:1,crt:1,cyber:1};var legacy={dark:"crt",light:"paper",red:"film",orange:"film",yellow:"film",green:"default",cyan:"cyber",blue:"default",violet:"cyber"};var next=ok[t]?t:legacy[t];if(next&&next!=="default")document.documentElement.setAttribute("data-theme",next);}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

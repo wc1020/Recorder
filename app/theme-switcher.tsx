@@ -38,9 +38,19 @@ export function ThemeSwitcher() {
   }, [open]);
 
   function pick(next: ThemeId) {
-    setTheme(next);
-    persistTheme(next);
     setOpen(false);
+    const run = () => {
+      setTheme(next);
+      persistTheme(next);
+    };
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void) => void;
+    };
+    if (typeof doc.startViewTransition === "function") {
+      doc.startViewTransition(run);
+    } else {
+      run();
+    }
   }
 
   return (
@@ -48,8 +58,8 @@ export function ThemeSwitcher() {
       <button
         type="button"
         className="header-theme"
-        aria-label="更换主题"
-        title="更换主题"
+        aria-label="更换氛围主题"
+        title="更换氛围主题"
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((v) => !v)}
@@ -66,7 +76,7 @@ export function ThemeSwitcher() {
         </span>
       </button>
       {open ? (
-        <div className="theme-menu" id={menuId} role="menu" aria-label="主题">
+        <div className="theme-menu" id={menuId} role="menu" aria-label="氛围主题">
           {THEMES.map((t) => (
             <button
               key={t.id}
@@ -77,17 +87,14 @@ export function ThemeSwitcher() {
               onClick={() => pick(t.id)}
             >
               <span
-                className={
-                  t.swatch
-                    ? t.id === "light"
-                      ? "theme-swatch is-light"
-                      : "theme-swatch"
-                    : "theme-swatch is-default"
-                }
-                style={t.swatch ? { background: t.swatch } : undefined}
+                className="theme-swatch"
+                style={{ background: t.swatch }}
                 aria-hidden
               />
-              {t.label}
+              <span className="theme-option-text">
+                <span className="theme-option-label">{t.label}</span>
+                <span className="theme-option-blurb">{t.blurb}</span>
+              </span>
             </button>
           ))}
         </div>

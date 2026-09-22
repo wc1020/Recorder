@@ -20,113 +20,137 @@
   --tag-bg: #e4eee4;
   --tag-fg: #2d5a2d;
   --tag-off-bg: #eeeae3;
+  --radius-card: 8px;
+  --radius-poster: 4px;
+  --font-display: "Segoe UI", system-ui, sans-serif;
+  --shadow-card: none;
+  --glow: transparent;
+  --theme-overlay: none;
 }
 
-html[data-theme="dark"] {
-  --bg: #121212;
-  --card: #1c1c1c;
-  --text: #e8e8e8;
-  --muted: #9a9a9a;
-  --accent: #7eb6ff;
-  --accent-hover: #a8ceff;
-  --border: #333;
-  --danger: #f07178;
-  --input-bg: #252525;
-  --surface-muted: #2a2a2a;
-  --logo-bg: #e8e8e8;
-  --logo-fg: #121212;
-  --disabled: #555;
-  --danger-border: #5c3034;
-  --danger-bg: #3a2224;
-  --on-accent: #121212;
-  --tag-bg: #1e3320;
-  --tag-fg: #8bc98f;
-  --tag-off-bg: #2a2a2a;
-}
-
-html[data-theme="light"] {
-  --bg: #ffffff;
-  --card: #ffffff;
-  --text: #111;
-  --muted: #666;
-  --accent: #0d47a1;
-  --accent-hover: #0a347a;
-  --border: #e5e5e5;
+/* —— 胶片：暖黄颗粒、圆角海报 —— */
+html[data-theme="film"] {
+  --bg: #e7dcc8;
+  --card: #f3ead8;
+  --text: #2a2118;
+  --muted: #7a6a58;
+  --accent: #8b3a1a;
+  --accent-hover: #6e2d14;
+  --border: #d2c2a8;
   --danger: #9b2226;
+  --input-bg: #faf3e6;
+  --surface-muted: #d8cbb4;
+  --logo-bg: #2a2118;
+  --logo-fg: #f3ead8;
+  --disabled: #b8a890;
+  --danger-border: #d4a8a0;
+  --danger-bg: #f0ddd6;
+  --on-accent: #faf3e6;
+  --tag-bg: #e0d4bc;
+  --tag-fg: #5a4030;
+  --tag-off-bg: #ebe1cf;
+  --radius-card: 12px;
+  --radius-poster: 8px;
+  --font-display: "Palatino Linotype", Palatino, "Songti SC", serif;
+  --shadow-card: 0 6px 18px rgba(60, 40, 20, 0.12);
+  --theme-overlay: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+}
+
+/* —— 纸质：米白细线、旧日记 —— */
+html[data-theme="paper"] {
+  --bg: #f7f4ec;
+  --card: #fffcf5;
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+  --accent: #1a1a1a;
+  --accent-hover: #000;
+  --border: #cfc8ba;
+  --danger: #8b1e1e;
   --input-bg: #fff;
-  --surface-muted: #ececec;
-  --logo-bg: #111;
-  --logo-fg: #fff;
-  --disabled: #c8c8c8;
-  --danger-border: #e4c4c4;
-  --danger-bg: #f8e8e8;
-  --on-accent: #fff;
-  --tag-bg: #e8f0e8;
-  --tag-fg: #2d5a2d;
-  --tag-off-bg: #f0f0f0;
+  --surface-muted: #ebe6db;
+  --logo-bg: #1a1a1a;
+  --logo-fg: #fffcf5;
+  --disabled: #c0b9ab;
+  --danger-border: #d8b4b4;
+  --danger-bg: #f5e8e8;
+  --on-accent: #fffcf5;
+  --tag-bg: #ebe6db;
+  --tag-fg: #333;
+  --tag-off-bg: #f0ebe1;
+  --radius-card: 2px;
+  --radius-poster: 2px;
+  --font-display: "Palatino Linotype", Palatino, "Songti SC", serif;
+  --shadow-card: none;
+  --theme-overlay: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 27px,
+    rgba(0, 0, 0, 0.04) 27px,
+    rgba(0, 0, 0, 0.04) 28px
+  );
 }
 
-html[data-theme="red"] {
-  --bg: #faf4f4;
-  --card: #fffafa;
-  --accent: #c62828;
-  --accent-hover: #a31f1f;
-  --border: #ead9d9;
-  --logo-bg: #c62828;
+/* —— 夜机：深底扫描线、霓虹 —— */
+html[data-theme="crt"] {
+  --bg: #0a0e12;
+  --card: #12181f;
+  --text: #d6f5d0;
+  --muted: #6f8f6a;
+  --accent: #39ff14;
+  --accent-hover: #6dff4d;
+  --border: #1e2e22;
+  --danger: #ff5c5c;
+  --input-bg: #0f151a;
+  --surface-muted: #182028;
+  --logo-bg: #39ff14;
+  --logo-fg: #0a0e12;
+  --disabled: #3a4a3a;
+  --danger-border: #5c3030;
+  --danger-bg: #2a1616;
+  --on-accent: #0a0e12;
+  --tag-bg: #16301a;
+  --tag-fg: #9dff8a;
+  --tag-off-bg: #182028;
+  --radius-card: 0;
+  --radius-poster: 0;
+  --font-display: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  --shadow-card: 0 0 0 1px rgba(57, 255, 20, 0.12);
+  --glow: 0 0 12px rgba(57, 255, 20, 0.25);
+  --theme-overlay: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 3px
+  );
 }
 
-html[data-theme="orange"] {
-  --bg: #faf6f2;
-  --card: #fffaf5;
-  --accent: #ef6c00;
-  --accent-hover: #d45e00;
-  --border: #eadfce;
-  --logo-bg: #ef6c00;
-}
-
-html[data-theme="yellow"] {
-  --bg: #faf8ef;
-  --card: #fffdf5;
-  --accent: #a67c00;
-  --accent-hover: #8a6700;
-  --border: #e8e0c4;
-  --logo-bg: #c9a227;
-}
-
-html[data-theme="green"] {
-  --bg: #f3f7f3;
-  --card: #f8fcf8;
-  --accent: #2e7d32;
-  --accent-hover: #246628;
-  --border: #d5e2d6;
-  --logo-bg: #2e7d32;
-}
-
-html[data-theme="cyan"] {
-  --bg: #f2f7f8;
-  --card: #f7fcfd;
-  --accent: #00838f;
-  --accent-hover: #006870;
-  --border: #d0e2e4;
-  --logo-bg: #00838f;
-}
-
-html[data-theme="blue"] {
-  --bg: #f2f5fa;
-  --card: #f7faff;
-  --accent: #1565c0;
-  --accent-hover: #0f4f99;
-  --border: #d4deec;
-  --logo-bg: #1565c0;
-}
-
-html[data-theme="violet"] {
-  --bg: #f7f3fa;
-  --card: #fbf7ff;
-  --accent: #6a1b9a;
-  --accent-hover: #55157c;
-  --border: #e0d4ea;
-  --logo-bg: #6a1b9a;
+/* —— 赛博：近黑雨夜、青紫光 —— */
+html[data-theme="cyber"] {
+  --bg: #07080f;
+  --card: #10131f;
+  --text: #e8ecff;
+  --muted: #8b92b8;
+  --accent: #00e5ff;
+  --accent-hover: #7c5cff;
+  --border: #24283d;
+  --danger: #ff4d8d;
+  --input-bg: #0c0e18;
+  --surface-muted: #161a2c;
+  --logo-bg: linear-gradient(120deg, #00e5ff, #7c5cff);
+  --logo-fg: #07080f;
+  --disabled: #3a4060;
+  --danger-border: #5c2840;
+  --danger-bg: #2a1220;
+  --on-accent: #07080f;
+  --tag-bg: #1a2040;
+  --tag-fg: #9adfff;
+  --tag-off-bg: #161a2c;
+  --radius-card: 10px;
+  --radius-poster: 6px;
+  --font-display: "Segoe UI", system-ui, sans-serif;
+  --shadow-card: 0 0 24px rgba(0, 229, 255, 0.06);
+  --glow: 0 0 16px rgba(124, 92, 255, 0.35);
 }
 
 * {
@@ -137,13 +161,59 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-}
-
-body {
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, sans-serif;
   line-height: 1.5;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background-image: var(--theme-overlay);
+  background-size: auto;
+  opacity: 0;
+}
+
+html[data-theme="film"] body::before {
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+  background-size: 160px 160px;
+}
+
+html[data-theme="paper"] body::before {
+  opacity: 1;
+}
+
+html[data-theme="crt"] body::before {
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+}
+
+html[data-theme="cyber"] body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% 0%, rgba(124, 92, 255, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(0, 229, 255, 0.12), transparent 50%);
+}
+
+.site-app {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.38s;
 }
 
 a {
@@ -153,10 +223,6 @@ a {
 
 a:hover {
   text-decoration: underline;
-}
-
-.site-app {
-  min-height: 100%;
 }
 
 .site-header {
@@ -316,11 +382,11 @@ a:hover {
   top: calc(100% + 8px);
   right: 0;
   z-index: 30;
-  min-width: 132px;
+  min-width: 200px;
   padding: 6px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   display: grid;
   gap: 2px;
@@ -329,9 +395,9 @@ a:hover {
 .theme-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -349,24 +415,35 @@ a:hover {
 }
 
 .theme-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   flex-shrink: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.14);
 }
 
-.theme-swatch.is-default {
-  background: conic-gradient(
-    #0d47a1 0 25%,
-    #f4f1ea 25% 50%,
-    #111 50% 75%,
-    #fff 75%
-  );
+.theme-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
-.theme-swatch.is-light {
-  background: #fff;
+.theme-option-label {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.theme-option-blurb {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.theme-option.active .theme-option-blurb,
+.theme-option:hover .theme-option-blurb {
+  color: inherit;
+  opacity: 0.8;
 }
 
 .site-body {
@@ -422,7 +499,8 @@ a:hover {
   background: var(--logo-bg);
   color: var(--logo-fg);
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-poster);
+  font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.4;
@@ -507,7 +585,8 @@ button.filter {
   height: 100%;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   color: var(--text);
   text-decoration: none;
@@ -516,6 +595,7 @@ button.filter {
 .card:hover {
   text-decoration: none;
   border-color: var(--accent);
+  box-shadow: var(--glow), var(--shadow-card);
 }
 
 .card-perfect,
@@ -1633,6 +1713,7 @@ a.btn:hover {
   gap: 10px;
   color: var(--text);
   text-decoration: none;
+  font-family: var(--font-display);
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1750,7 +1831,7 @@ a.btn:hover {
   width: 100%;
   aspect-ratio: 2 / 3;
   border: 1px dashed var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-poster);
   background: var(--bg);
   color: var(--muted);
   cursor: pointer;
@@ -1884,14 +1965,14 @@ a.btn:hover {
   position: relative;
   display: block;
   aspect-ratio: 2 / 3;
-  border-radius: 4px;
+  border-radius: var(--radius-poster);
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--text);
   text-decoration: none;
   line-height: 0;
-  transition: border-color 0.12s ease, transform 0.12s ease;
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .home-poster:hover {
@@ -1899,6 +1980,7 @@ a.btn:hover {
   transform: translateY(-2px);
   text-decoration: none;
   color: #fff;
+  box-shadow: var(--glow);
 }
 
 .home-poster .cover,
