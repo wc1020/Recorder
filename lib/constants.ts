@@ -82,6 +82,9 @@ export function collectionLabel(type: string): string {
   return type === "book" ? "书单" : "片单";
 }
 
+/** 首页「最喜欢」固定槽位数。 */
+export const FAVORITE_SLOTS = 5;
+
 /** 用户连续无操作这么久之后，才自动拉一次远程数据。 */
 export const IDLE_REFRESH_MS = 15 * 60 * 1000;
 

@@ -40,6 +40,7 @@ type TmdbTv = {
   id: number;
   name?: string;
   original_name?: string;
+  original_language?: string;
   first_air_date?: string;
   poster_path?: string | null;
   overview?: string;
@@ -53,6 +54,15 @@ type TmdbTv = {
   spoken_languages?: TmdbLanguage[];
   episode_run_time?: number[];
   credits?: TmdbCredits;
+  images?: { posters?: TmdbImage[] };
+};
+
+type TmdbTitle = {
+  original_language?: string;
+  poster_path?: string | null;
+  production_countries?: TmdbCountry[];
+  origin_country?: string[];
+  images?: { posters?: TmdbImage[] };
 };
 
 type TmdbSearchResponse<T> = {
@@ -103,15 +113,18 @@ function normPosterLang(code: string | null | undefined): string | null {
   return c;
 }
 
-function regionPosterLangs(movie: TmdbMovie): string[] {
+function regionPosterLangs(item: TmdbTitle): string[] {
   const out: string[] = [];
   const add = (lang: string | null) => {
     if (!lang || out.includes(lang)) return;
     out.push(lang);
   };
-  add(normPosterLang(movie.original_language));
-  for (const country of movie.production_countries ?? []) {
+  add(normPosterLang(item.original_language));
+  for (const country of item.production_countries ?? []) {
     add(normPosterLang(COUNTRY_POSTER_LANG[country.iso_3166_1]));
+  }
+  for (const code of item.origin_country ?? []) {
+    add(normPosterLang(COUNTRY_POSTER_LANG[code] ?? (code === "CN" || code === "HK" || code === "TW" ? "zh" : null)));
   }
   return out;
 }
@@ -126,16 +139,16 @@ function bestPosterPath(posters: TmdbImage[] | undefined, lang: string | null): 
 }
 
 /** 先地区语言海报，没有再英文，再无字 / 默认。 */
-function moviePosterPath(movie: TmdbMovie): string | null {
-  const posters = movie.images?.posters;
-  for (const lang of regionPosterLangs(movie)) {
+function pickPosterPath(item: TmdbTitle): string | null {
+  const posters = item.images?.posters;
+  for (const lang of regionPosterLangs(item)) {
     if (lang === "en") continue;
     const path = bestPosterPath(posters, lang);
     if (path) return path;
   }
   return (
     bestPosterPath(posters, "en") ||
-    movie.poster_path ||
+    item.poster_path ||
     bestPosterPath(posters, null)
   );
 }
@@ -225,6 +238,7 @@ export const tmdbProvider: Provider = {
   async getDetail(sourceId: string): Promise<ItemSnapshot> {
     const movie = (await tmdbGet(`/movie/${encodeURIComponent(sourceId)}`, {
       append_to_response: "credits,images",
+      include_image_language: "zh,en,null",
     })) as TmdbMovie;
     const title = movie.title || movie.original_title || "未命名";
     const originalTitle =
@@ -240,7 +254,7 @@ export const tmdbProvider: Provider = {
       title,
       originalTitle,
       year: yearFromDate(movie.release_date),
-      coverUrl: posterUrl(moviePosterPath(movie)),
+      coverUrl: posterUrl(pickPosterPath(movie)),
       description: movie.overview || null,
       extraJson: extraJsonOf({
         genres: namesOf(movie.genres).map(localizeGenre),
@@ -282,7 +296,8 @@ export const tmdbTvProvider: Provider = {
 
   async getDetail(sourceId: string): Promise<ItemSnapshot> {
     const show = (await tmdbGet(`/tv/${encodeURIComponent(sourceId)}`, {
-      append_to_response: "credits",
+      append_to_response: "credits,images",
+      include_image_language: "zh,en,null",
     })) as TmdbTv;
     const title = show.name || show.original_name || "未命名";
     const originalTitle =
@@ -294,7 +309,7 @@ export const tmdbTvProvider: Provider = {
       title,
       originalTitle,
       year: yearFromDate(show.first_air_date),
-      coverUrl: posterUrl(show.poster_path),
+      coverUrl: posterUrl(pickPosterPath(show)),
       description: show.overview || null,
       extraJson: extraJsonOf({
         genres: namesOf(show.genres).map(localizeGenre),

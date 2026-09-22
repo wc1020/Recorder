@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BackLink } from "./back-link";
+import { ThemeSwitcher } from "./theme-switcher";
 import { GAME_VIEWS, gamePageHref, parseGameView } from "@/lib/game-href";
 import {
   lastMediaType,
@@ -149,10 +150,13 @@ export function SiteHeader() {
       <div className="header-main">
         <span className="logo">ProjectM</span>
         <SubNav />
-        <Link href={searchHref} className="header-search" title="搜索">
-          <span className="header-search-icon" aria-hidden />
-          <span className="sr-only">搜索</span>
-        </Link>
+        <div className="header-actions">
+          <ThemeSwitcher />
+          <Link href={searchHref} className="header-search" title="搜索">
+            <span className="header-search-icon" aria-hidden />
+            <span className="sr-only">搜索</span>
+          </Link>
+        </div>
       </div>
     </header>
   );

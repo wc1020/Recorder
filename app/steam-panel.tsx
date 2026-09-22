@@ -262,7 +262,13 @@ function SteamOverview({
         <div className="steam-recent-strip">
           {covers.map((g) => (
             <Link key={g.appid} href={`/steam/${g.appid}`} title={g.name} className="steam-recent-cover">
-              <Cover appid={g.appid} url={g.coverUrl} title={g.name} size="wide" />
+              <Cover
+                appid={g.appid}
+                url={g.coverUrl}
+                title={g.name}
+                size="wide"
+                orientation="landscape"
+              />
             </Link>
           ))}
         </div>

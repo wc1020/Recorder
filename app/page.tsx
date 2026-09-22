@@ -1,3 +1,4 @@
+import { HomeDashboard } from "./home-dashboard";
 import { MediaList } from "./media-list";
 import { SteamPanel } from "./steam-panel";
 import { isMediaType, type MediaType } from "@/lib/constants";
@@ -25,12 +26,7 @@ export default async function Home({
   const gameView = raw === "want" ? "want" : sp.view;
 
   if (!type) {
-    return (
-      <>
-        <h1>首页</h1>
-        <p className="muted">内容还没定。</p>
-      </>
-    );
+    return <HomeDashboard />;
   }
 
   return (

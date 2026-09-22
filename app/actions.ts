@@ -380,3 +380,94 @@ export async function refreshSteamOnIdle(detailAppid?: number): Promise<void> {
   }
   revalidatePath("/");
 }
+
+/** 把条目放进某类型「最喜欢」第 rank 格（1–5）；同格旧条目会被挤掉。 */
+export async function setFavoriteRank(itemId: number, rank: number): Promise<void> {
+  if (!Number.isInteger(itemId) || itemId <= 0) throw new Error("参数无效");
+  if (!Number.isInteger(rank) || rank < 1 || rank > 5) throw new Error("槽位无效");
+
+  const item = await prisma.item.findUnique({
+    where: { id: itemId },
+    include: { entry: true },
+  });
+  if (!item || !isMediaType(item.type)) throw new Error("条目不存在");
+
+  const sameType = await prisma.entry.findMany({
+    where: {
+      favoriteRank: rank,
+      item: { type: item.type },
+    },
+    select: { itemId: true },
+  });
+  await prisma.$transaction([
+    ...sameType
+      .filter((e) => e.itemId !== itemId)
+      .map((e) =>
+        prisma.entry.update({
+          where: { itemId: e.itemId },
+          data: { favoriteRank: null },
+        }),
+      ),
+    prisma.entry.upsert({
+      where: { itemId },
+      create: {
+        itemId,
+        status: "wishlist",
+        wishlistOn: todayLocal(),
+        favoriteRank: rank,
+      },
+      update: { favoriteRank: rank },
+    }),
+  ]);
+
+  revalidatePath("/");
+  revalidatePath(`/item/${itemId}`);
+}
+
+/** 从 Steam 库存选最喜欢：没有 Item 就用本地备份建一条，不打远程。 */
+export async function setGameFavoriteByAppid(appid: number, rank: number): Promise<void> {
+  if (!Number.isInteger(appid) || appid <= 0) throw new Error("参数无效");
+  if (!Number.isInteger(rank) || rank < 1 || rank > 5) throw new Error("槽位无效");
+
+  const existing = await prisma.item.findUnique({
+    where: {
+      type_source_sourceId: { type: "game", source: "steam", sourceId: String(appid) },
+    },
+  });
+  if (existing) {
+    await setFavoriteRank(existing.id, rank);
+    return;
+  }
+
+  const backup = await loadSteamBackup();
+  const games = backup
+    ? [...backup.player.owned, ...backup.player.family, ...backup.player.recentlyPlayed]
+    : [];
+  const hit = games.find((g) => g.appid === appid);
+  if (!hit) throw new Error("本地 Steam 备份里没有这个游戏，先去游戏页刷新。");
+
+  const item = await prisma.item.create({
+    data: {
+      type: "game",
+      source: "steam",
+      sourceId: String(appid),
+      title: hit.name || `App ${appid}`,
+      coverUrl: hit.coverUrl,
+      year: null,
+      description: null,
+      originalTitle: null,
+      extraJson: null,
+    },
+  });
+  await setFavoriteRank(item.id, rank);
+}
+
+export async function clearFavoriteRank(itemId: number): Promise<void> {
+  if (!Number.isInteger(itemId) || itemId <= 0) throw new Error("参数无效");
+  await prisma.entry.updateMany({
+    where: { itemId },
+    data: { favoriteRank: null },
+  });
+  revalidatePath("/");
+  revalidatePath(`/item/${itemId}`);
+}

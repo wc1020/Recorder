@@ -12,10 +12,13 @@ export const metadata: Metadata = {
   description: "个人媒体记录：电影、电视剧、图书、游戏",
 };
 
+const themeBootScript = `(function(){try{var k="projectm-theme";var t=localStorage.getItem(k);var ok={dark:1,light:1,red:1,orange:1,yellow:1,green:1,cyan:1,blue:1,violet:1};if(t&&ok[t])document.documentElement.setAttribute("data-theme",t);}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <Suspense fallback={null}>
           <KeepScroll />
           <IdleRefresh />
