@@ -14,11 +14,14 @@ export type MediaExtra = {
   firstAirDate?: string | null;
   imdbId?: string | null;
   authors?: string[];
+  translators?: string[];
   isbn?: string | null;
   publisher?: string | null;
   publishedDate?: string | null;
   pageCount?: number | null;
   categories?: string[];
+  series?: string | null;
+  doubanId?: string | null;
 };
 
 export function parseExtra(raw: string | null | undefined): MediaExtra {
@@ -201,8 +204,10 @@ export function factRows(
 
   if (type === "book") {
     add("作者", joinNames(extra.authors, "、"));
+    add("译者", joinNames(extra.translators, "、"));
     add("出版社", extra.publisher);
     add("出版", extra.publishedDate);
+    add("丛书", extra.series);
     add("页数", extra.pageCount);
     add("ISBN", extra.isbn);
     const cats = formatGenres(extra.categories);
@@ -250,6 +255,13 @@ export function extraLinks(
         href: `https://www.imdb.com/title/${encodeURIComponent(extra.imdbId)}/`,
       });
     }
+  }
+  if (type === "book" && extra.doubanId) {
+    links.push({
+      label: "豆瓣",
+      href: `https://book.douban.com/subject/${encodeURIComponent(extra.doubanId)}/`,
+    });
+    return links;
   }
   if (source === "google_books") {
     links.push({

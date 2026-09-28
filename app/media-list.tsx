@@ -68,12 +68,15 @@ export async function MediaList({ type, query }: { type: MediaType; query: Media
   }
 
   const inbox = query.view === "inbox";
+  /** 图书纯本地，全部进主列表；电影/剧手动添加仍进待整理。 */
+  const sourceFilter =
+    type === "book" ? undefined : inbox ? MANUAL_SOURCE : { not: MANUAL_SOURCE };
   const all = collection
     ? collection.items.map((row) => row.item)
     : await prisma.item.findMany({
         where: {
           type,
-          source: inbox ? MANUAL_SOURCE : { not: MANUAL_SOURCE },
+          ...(sourceFilter ? { source: sourceFilter } : {}),
         },
         include: { entry: true },
         orderBy: { createdAt: "desc" },

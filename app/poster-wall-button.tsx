@@ -21,6 +21,7 @@ const CELL_H = 210;
 const GAP = 4;
 
 function proxyUrl(url: string): string {
+  if (url.startsWith("/")) return url;
   return `/api/cover-proxy?url=${encodeURIComponent(url)}`;
 }
 

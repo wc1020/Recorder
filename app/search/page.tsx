@@ -18,10 +18,11 @@ export default async function SearchPage({
   const rawType = sp.type ?? "";
   const type: MediaType = isMediaType(rawType) ? rawType : "movie";
   const q = (sp.q ?? "").trim();
+  const bookLocal = type === "book";
 
   let hits: Awaited<ReturnType<ReturnType<typeof getProvider>["search"]>> = [];
   let error: string | null = null;
-  if (q) {
+  if (q && !bookLocal) {
     try {
       hits = await getProvider(type).search(q);
     } catch (err) {
@@ -45,71 +46,90 @@ export default async function SearchPage({
       : await prisma.item.findMany({
           where: {
             type,
-            ...(type === "book" ? {} : { source }),
+            source,
             sourceId: { in: hitIds },
           },
           select: { id: true, sourceId: true },
         });
-  const existingMap = new Map<string, number>();
-  for (const row of existing) {
-    existingMap.set(row.sourceId, row.id);
-    existingMap.set(`ol:${row.sourceId}`, row.id);
-  }
+  const existingMap = new Map(existing.map((row) => [row.sourceId, row.id]));
 
   return (
     <>
       <RememberType type={type} />
-      <h1>搜索</h1>
-      <form className="search-form" action="/search" method="get">
-        <select name="type" defaultValue={type}>
-          {MEDIA_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="片名 / 剧名 / 书名 / 游戏名"
-          required
-        />
-        <button className="btn" type="submit">
-          搜索
-        </button>
-      </form>
-      {error ? <p className="error">{error}</p> : null}
-      {!q ? <p className="muted">输入关键词，从正规资料库搜索后加入。</p> : null}
-      {q && !error && hits.length === 0 ? <p className="empty">没有结果。</p> : null}
-      {hits.map((hit) => {
-        const localId = existingMap.get(hit.sourceId);
-        return (
-          <div key={hit.sourceId} className="search-row">
-            <Cover url={hit.coverUrl} title={hit.title} size="sm" />
-            <div className="search-row-body">
-              <h2>{hit.title}</h2>
-              <p className="muted">
-                {[hit.year, hit.subtitle].filter(Boolean).join(" · ")}
-              </p>
-              {localId ? (
-                <Link className="ok" href={`/item/${localId}`}>
-                  已入库
-                </Link>
-              ) : (
-                <AddButton type={type} sourceId={hit.sourceId} />
-              )}
-            </div>
-          </div>
-        );
-      })}
-      {type !== "game" ? (
-        <section className="manual-add">
-          <h2>搜不到？手动添加</h2>
-          <p className="muted">自己填标题即可。没有远程资料，详情页不能刷新。</p>
-          <ManualAddForm type={type} title={!error && q && hits.length === 0 ? q : ""} />
-        </section>
-      ) : null}
+      <h1>{bookLocal ? "添加图书" : "搜索"}</h1>
+      {bookLocal ? (
+        <>
+          <form className="search-form" action="/search" method="get">
+            <select name="type" defaultValue={type}>
+              {MEDIA_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <button className="btn" type="submit">
+              切换
+            </button>
+          </form>
+          <p className="muted">图书已改为纯本地：不搜远程资料库，请手动填写后加入。</p>
+          <section className="manual-add">
+            <ManualAddForm type={type} title="" />
+          </section>
+        </>
+      ) : (
+        <>
+          <form className="search-form" action="/search" method="get">
+            <select name="type" defaultValue={type}>
+              {MEDIA_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="search"
+              name="q"
+              defaultValue={q}
+              placeholder="片名 / 剧名 / 游戏名"
+              required
+            />
+            <button className="btn" type="submit">
+              搜索
+            </button>
+          </form>
+          {error ? <p className="error">{error}</p> : null}
+          {!q ? <p className="muted">输入关键词，从正规资料库搜索后加入。</p> : null}
+          {q && !error && hits.length === 0 ? <p className="empty">没有结果。</p> : null}
+          {hits.map((hit) => {
+            const localId = existingMap.get(hit.sourceId);
+            return (
+              <div key={hit.sourceId} className="search-row">
+                <Cover url={hit.coverUrl} title={hit.title} size="sm" />
+                <div className="search-row-body">
+                  <h2>{hit.title}</h2>
+                  <p className="muted">
+                    {[hit.year, hit.subtitle].filter(Boolean).join(" · ")}
+                  </p>
+                  {localId ? (
+                    <Link className="ok" href={`/item/${localId}`}>
+                      已入库
+                    </Link>
+                  ) : (
+                    <AddButton type={type} sourceId={hit.sourceId} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {type !== "game" ? (
+            <section className="manual-add">
+              <h2>搜不到？手动添加</h2>
+              <p className="muted">自己填标题即可。没有远程资料，详情页不能刷新。</p>
+              <ManualAddForm type={type} title={!error && q && hits.length === 0 ? q : ""} />
+            </section>
+          ) : null}
+        </>
+      )}
     </>
   );
 }

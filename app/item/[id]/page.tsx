@@ -46,7 +46,8 @@ export default async function ItemPage({
   const extra = parseExtra(item.extraJson);
   const facts = factRows(item.type, extra);
   const links = extraLinks(item.type, item.source, item.sourceId, extra);
-  const canRefresh = item.source !== MANUAL_SOURCE && item.type !== "game";
+  const canRefresh =
+    item.source !== MANUAL_SOURCE && item.type !== "game" && item.type !== "book";
   const listName = collectionLabel(item.type);
   const inIds = new Set(item.collections.map((row) => row.collectionId));
   const lists =

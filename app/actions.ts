@@ -20,6 +20,7 @@ import {
 } from "@/lib/entry-dates";
 import { prisma } from "@/lib/db";
 import { mediaPageHref } from "@/lib/list-href";
+import { extraJsonOf } from "@/lib/media-extra";
 import { getProvider, ProviderNotConfiguredError, type ItemSnapshot } from "@/lib/providers";
 import { getSteamGamePage, getSteamPlayerPage, refreshSteamProfileLive } from "@/lib/providers/steam";
 import { loadSteamBackup } from "@/lib/steam-cache";
@@ -190,6 +191,9 @@ export async function refreshItem(itemId: number): Promise<{ error?: string }> {
   if (!item || !isCatalogType(item.type)) {
     return { error: "条目不存在" };
   }
+  if (item.type === "book") {
+    return { error: "图书已改为纯本地，无法从远程刷新" };
+  }
   if (item.source === MANUAL_SOURCE) {
     return { error: "手动添加的条目没有远程资料" };
   }
@@ -224,6 +228,9 @@ export async function addManualItem(
   const yearRaw = String(formData.get("year") ?? "").trim();
   const coverUrl = String(formData.get("coverUrl") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
+  const authorsRaw = String(formData.get("authors") ?? "").trim();
+  const isbnRaw = String(formData.get("isbn") ?? "").trim().replace(/[-\s]/g, "");
+  const publisher = String(formData.get("publisher") ?? "").trim() || null;
 
   if (!isCatalogType(typeRaw)) return { error: "请选择电影、电视剧或图书" };
   if (!title || title.length > 200) return { error: "请填写标题" };
@@ -238,6 +245,22 @@ export async function addManualItem(
   if (coverUrl && !/^https?:\/\//i.test(coverUrl)) {
     return { error: "封面须是 http(s) 链接" };
   }
+  if (isbnRaw && !/^(\d{9}[\dXx]|\d{13})$/.test(isbnRaw)) {
+    return { error: "ISBN 无效" };
+  }
+
+  const authors = authorsRaw
+    ? authorsRaw.split(/[,，、;/|]+/).map((s) => s.trim()).filter(Boolean)
+    : [];
+  const extraJson =
+    typeRaw === "book"
+      ? extraJsonOf({
+          authors,
+          isbn: isbnRaw || null,
+          publisher,
+          publishedDate: year != null ? String(year) : null,
+        })
+      : null;
 
   const item = await prisma.item.create({
     data: {
@@ -249,6 +272,7 @@ export async function addManualItem(
       year,
       coverUrl,
       description,
+      extraJson,
     },
   });
   await prisma.entry.create({
