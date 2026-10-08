@@ -135,7 +135,7 @@ function coverUrl(assets: SteamItem["assets"] | undefined): string | null {
 }
 
 function storeCapsule(appid: number): string {
-  return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header_schinese.jpg`;
+  return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`;
 }
 
 function yearFromUnix(seconds: number | undefined): number | null {
@@ -558,6 +558,28 @@ async function lastPrivateAppIds(): Promise<Set<number>> {
   return new Set(backup?.player?.privateAppIds ?? []);
 }
 
+async function familyLibraryFallback(error: string | null): Promise<{
+  games: SteamGameRow[];
+  playtimeMin: number;
+  error: string | null;
+}> {
+  const backup = await loadSteamBackup();
+  const games = backup?.player?.family ?? [];
+  const playtimeMin =
+    backup?.player?.familyPlaytimeMin ??
+    games.reduce((sum, g) => sum + g.playtimeForeverMin, 0);
+  if (games.length === 0) {
+    return { games: [], playtimeMin: 0, error };
+  }
+  return {
+    games,
+    playtimeMin,
+    error:
+      error ||
+      "家庭库用的是上次备份。token 无效或已过期，请更新 STEAM_ACCESS_TOKEN / STEAM_REFRESH_TOKEN。",
+  };
+}
+
 async function fetchPrivateAppIds(steamid: string): Promise<Set<number>> {
   const auth = await getFamilyAccessToken(steamid);
   if (!auth.token) return lastPrivateAppIds();
@@ -814,8 +836,8 @@ async function getFamilyAccessToken(steamid: string): Promise<FamilyAuth> {
     }
   }
 
-  if (!tokenStillGood(access)) {
-    return { token: null, error: null };
+  if (!access || !tokenStillGood(access)) {
+    return { token: null, error: "家庭库 token 无效或已过期" };
   }
   return { token: access, error: null };
 }
@@ -829,8 +851,8 @@ async function fetchFamilyLibrary(
   error: string | null;
 }> {
   const auth = await getFamilyAccessToken(steamid);
-  if (auth.error) return { games: [], playtimeMin: 0, error: auth.error };
-  if (!auth.token) return { games: [], playtimeMin: 0, error: null };
+  if (auth.error) return familyLibraryFallback(auth.error);
+  if (!auth.token) return familyLibraryFallback(null);
 
   try {
     const groupRaw = (await steamAccessGet(
@@ -897,10 +919,13 @@ async function fetchFamilyLibrary(
   } catch (err) {
     const message = err instanceof Error ? err.message : "读取家庭库失败";
     const error =
-      message.includes("403") || message.includes("401") || /Steam Web API Key 无效/.test(message)
+      message.includes("403") ||
+      message.includes("401") ||
+      message.includes("无效或已过期") ||
+      /Steam Web API Key 无效/.test(message)
         ? "家庭库 token 无效或已过期，请更新 STEAM_ACCESS_TOKEN / STEAM_REFRESH_TOKEN。"
         : message;
-    return { games: [], playtimeMin: 0, error };
+    return familyLibraryFallback(error);
   }
 }
 
@@ -1021,6 +1046,33 @@ function sortPerfect(
   });
 }
 
+/** 详情备份里全成就都解锁时，用最晚解锁时间当地完成时间。 */
+function completedAtFromGameBackup(
+  games: Record<string, SteamGamePage> | undefined,
+  appid: number,
+): number | null {
+  const list = games?.[String(appid)]?.achievements;
+  if (!list?.length || !list.every((a) => a.unlocked)) return null;
+  const at = Math.max(...list.map((a) => a.unlockTime ?? 0));
+  return at > 0 ? at : null;
+}
+
+function fillCompletedAtFromLocal(
+  completedAt: Map<number, number>,
+  games: SteamGameRow[],
+  backupGames: Record<string, SteamGamePage> | undefined,
+): boolean {
+  let filled = false;
+  for (const g of games) {
+    if ((completedAt.get(g.appid) ?? 0) > 0) continue;
+    const at = completedAtFromGameBackup(backupGames, g.appid);
+    if (at == null) continue;
+    completedAt.set(g.appid, at);
+    filled = true;
+  }
+  return filled;
+}
+
 export function cachedPerfectCount(played: SteamGameRow[]): number | null {
   if (hasAchievementProgress(played)) {
     return played.filter(isProgressPerfect).length;
@@ -1061,7 +1113,10 @@ export async function filterPerfectGames(
       (backup?.perfect ?? perfectCache?.items ?? []).map((i) => [i.appid, i.completedAt]),
     );
     if (opts?.fromCache) {
-      return finishPerfectList(fromProgress, key, completedAt);
+      const filled = fillCompletedAtFromLocal(completedAt, fromProgress, backup?.games);
+      const results = finishPerfectList(fromProgress, key, completedAt);
+      if (filled) await saveSteamPerfectBackup(perfectCache?.items ?? []).catch(() => {});
+      return results;
     }
     if (
       perfectCache &&
@@ -1202,9 +1257,7 @@ function playerFromBackup(
     owned,
     family,
     familyPlaytimeMin,
-    familyError: p.familyError?.includes("STEAM_ACCESS_TOKEN 已过期")
-      ? null
-      : p.familyError,
+    familyError: p.familyError,
     totalPlaytimeMin: ownedPlaytimeMin + familyPlaytimeMin + (p.familyRecentPlaytimeMin ?? 0),
     privateAppIds: [...hidden],
     xp: p.xp ?? null,

@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 import { AchievementList } from "../../achievement-list";
 import { Cover } from "../../cover";
 import { PaidPriceButton } from "../../paid-price-button";
+import { RatingStars } from "../../rating-stars";
+import { saveGameEntry } from "../../actions";
+import { formatRating } from "@/lib/constants";
+import { prisma } from "@/lib/db";
 import { getSteamGamePage, type SteamDlcRow } from "@/lib/providers/steam";
 import { formatFenLabel, formatHourNumber, gamePriceFen } from "@/lib/steam-format";
 import { listPaidFen } from "@/lib/steam-paid";
@@ -10,10 +14,13 @@ export const dynamic = "force-dynamic";
 
 export default async function SteamGamePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ appid: string }>;
+  searchParams: Promise<{ saved?: string }>;
 }) {
   const { appid: raw } = await params;
+  const { saved } = await searchParams;
   const appid = Number(raw);
   if (!Number.isInteger(appid) || appid <= 0) notFound();
 
@@ -48,7 +55,7 @@ export default async function SteamGamePage({
   return (
     <>
       <div className="detail detail-game">
-        <Cover url={data.coverUrl} title={data.name} size="lg" />
+        <Cover appid={appid} url={data.coverUrl} title={data.name} size="lg" orientation="portrait" />
         <div className="detail-info">
           <h1 title={data.name}>{data.name}</h1>
           <p className="muted detail-play">
@@ -67,12 +74,12 @@ export default async function SteamGamePage({
           </p>
           {data.review ? (
             <p className="review-box">
-              评价：{data.review.label}
+              商店评测：{data.review.label}
               {data.review.percent != null ? ` ${data.review.percent}%` : ""}
-              {` · ${data.review.total} 篇评测`}
+              {` · ${data.review.total} 篇`}
             </p>
           ) : (
-            <p className="muted detail-review">评价：暂无评测摘要</p>
+            <p className="muted detail-review">商店评测：暂无摘要</p>
           )}
           {data.description ? (
             <p className="detail-desc" title={data.description}>
@@ -94,6 +101,8 @@ export default async function SteamGamePage({
           不在个人库存里（家庭库很常见）。时长按「最近游玩」记录，两周没玩过就拉不到。
         </p>
       ) : null}
+
+      <GameEntryBlock appid={appid} saved={saved} />
 
       <h2 className="section-title">
         DLC
@@ -128,6 +137,56 @@ export default async function SteamGamePage({
   );
 }
 
+async function GameEntryBlock({
+  appid,
+  saved,
+}: {
+  appid: number;
+  saved?: string;
+}) {
+  const item = await prisma.item.findUnique({
+    where: { type_source_sourceId: { type: "game", source: "steam", sourceId: String(appid) } },
+    include: { entry: true },
+  });
+  const entry = item?.entry ?? null;
+
+  return (
+    <section className="game-entry">
+      <h2 className="section-title">我的评价</h2>
+      {entry?.rating != null ? (
+        <p className="game-entry-score">
+          <RatingStars value={entry.rating} />
+          <span>{formatRating(entry.rating)}</span>
+        </p>
+      ) : (
+        <p className="muted">还没打分。</p>
+      )}
+      {saved ? <p className="saved">已保存</p> : null}
+      <form className="entry-form" action={saveGameEntry}>
+        <input type="hidden" name="appid" value={appid} />
+        <label>
+          评分
+          <select name="rating" defaultValue={entry?.rating?.toString() ?? ""}>
+            <option value="">没打分</option>
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n / 2} 星
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          短评
+          <textarea name="review" rows={4} defaultValue={entry?.review ?? ""} />
+        </label>
+        <button className="btn" type="submit">
+          保存
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function DlcRow({
   row,
   parentAppid,
@@ -140,7 +199,7 @@ function DlcRow({
   const linePaid = paidFen ?? (row.owned ? row.originalFen : null);
   return (
     <div className={row.owned ? "dlc-row" : "dlc-row locked"}>
-      <Cover url={row.coverUrl} title={row.name} size="wide" />
+      <Cover appid={row.appid} url={row.coverUrl} title={row.name} size="wide" />
       <div className="dlc-body">
         <p className="dlc-name">{row.name}</p>
         <div className="dlc-meta">

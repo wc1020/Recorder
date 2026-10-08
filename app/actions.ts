@@ -354,6 +354,78 @@ export async function deleteCollection(formData: FormData): Promise<void> {
   redirect(mediaPageHref(collection.type, { view: "lists" }));
 }
 
+async function ensureSteamGameItem(appid: number) {
+  const sourceId = String(appid);
+  const existing = await prisma.item.findUnique({
+    where: { type_source_sourceId: { type: "game", source: "steam", sourceId } },
+    include: { entry: true },
+  });
+  if (existing) return existing;
+
+  const backup = await loadSteamBackup();
+  const cached = backup?.games?.[sourceId];
+  const rows = backup
+    ? [...backup.player.owned, ...backup.player.family, ...backup.player.recentlyPlayed]
+    : [];
+  const hit = rows.find((g) => g.appid === appid);
+  if (!cached && !hit) {
+    throw new Error("本地 Steam 备份里没有这个游戏，先打开详情或去游戏页刷新。");
+  }
+
+  return prisma.item.create({
+    data: {
+      type: "game",
+      source: "steam",
+      sourceId,
+      title: cached?.name || hit?.name || `App ${appid}`,
+      coverUrl: cached?.coverUrl || hit?.coverUrl || null,
+      year: null,
+      description: cached?.description ?? null,
+      originalTitle: null,
+      extraJson: null,
+    },
+    include: { entry: true },
+  });
+}
+
+export async function saveGameEntry(formData: FormData): Promise<void> {
+  const appid = Number(formData.get("appid"));
+  const ratingRaw = String(formData.get("rating") ?? "");
+  const review = String(formData.get("review") ?? "").trim() || null;
+
+  if (!Number.isInteger(appid) || appid <= 0) {
+    throw new Error("参数无效");
+  }
+
+  let rating: number | null = null;
+  if (ratingRaw !== "") {
+    const n = Number(ratingRaw);
+    if (!Number.isInteger(n) || n < 0 || n > 10) {
+      throw new Error("评分须为 0–10 的整数");
+    }
+    rating = n;
+  }
+
+  const item = await ensureSteamGameItem(appid);
+  await prisma.entry.upsert({
+    where: { itemId: item.id },
+    create: {
+      itemId: item.id,
+      status: "done",
+      rating,
+      review,
+    },
+    update: {
+      rating,
+      review,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath(`/steam/${appid}`);
+  redirect(`/steam/${appid}?saved=1`);
+}
+
 export async function saveSteamPaidPrice(formData: FormData): Promise<void> {
   const appid = Number(formData.get("appid"));
   const raw = String(formData.get("paid") ?? "").trim();

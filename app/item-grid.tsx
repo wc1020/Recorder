@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Cover } from "./cover";
 import { RatingStars } from "./rating-stars";
 import { formatRating, statusLabel, type MediaType } from "@/lib/constants";
-import { cardSubtitle, movieCardFacts, parseExtra } from "@/lib/media-extra";
+import { bookCardFacts, cardSubtitle, movieCardFacts, parseExtra } from "@/lib/media-extra";
 
 export type GridItem = {
   id: number;
@@ -25,6 +25,12 @@ export function ItemGrid({ type, items }: { type: MediaType; items: GridItem[] }
         const statusName = item.entry ? statusLabel(item.entry.status, type) : "—";
         const showStars = status === "done" && rating != null;
         const statusTitle = showStars ? `${statusName} · ${formatRating(rating)}` : statusName !== "—" ? statusName : undefined;
+        const facts =
+          type === "movie" || type === "tv"
+            ? movieCardFacts(type, item.year, extra)
+            : type === "book"
+              ? bookCardFacts(extra)
+              : null;
         return (
           <Link key={item.id} href={`/item/${item.id}`} className="card">
             <Cover url={item.coverUrl} title={item.title} />
@@ -32,9 +38,9 @@ export function ItemGrid({ type, items }: { type: MediaType; items: GridItem[] }
               <p className="card-title" title={item.title}>
                 <span>{item.title}</span>
               </p>
-              {type === "movie" || type === "tv" ? (
+              {facts ? (
                 <dl className="card-stats">
-                  {movieCardFacts(type, item.year, extra).map((row) => (
+                  {facts.map((row) => (
                     <div key={row.k} className="card-stat">
                       <dt>{row.k}</dt>
                       <dd title={row.title ?? (row.v !== "—" ? row.v : undefined)}>{row.v}</dd>

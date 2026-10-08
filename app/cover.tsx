@@ -5,6 +5,12 @@ import { useLayoutEffect, useState } from "react";
 const CDN = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps";
 type Orientation = "landscape" | "portrait";
 const memory = new Map<string, string>();
+/** 404 过的 CDN 地址，避免 effect 重置或 Strict Mode 重挂再请求同一张死图。 */
+const dead = new Set<string>();
+
+function firstLive(chain: string[]): string | null {
+  return chain.find((u) => !dead.has(u)) ?? null;
+}
 
 function uniq(urls: (string | null | undefined)[]): string[] {
   const out: string[] = [];
@@ -55,11 +61,11 @@ function coverKey(appid: number, orientation: Orientation): string {
 function rememberedCover(appid: number, orientation: Orientation): string | null {
   const key = coverKey(appid, orientation);
   const hit = memory.get(key);
-  if (hit) return hit;
+  if (hit && !dead.has(hit)) return hit;
   if (typeof localStorage === "undefined") return null;
   try {
     const typed = localStorage.getItem(key);
-    if (typed) return typed;
+    if (typed && !dead.has(typed)) return typed;
     // 兼容旧 key；方向对不上就丢弃
     const legacy = localStorage.getItem(`pm-cover:${appid}`);
     if (!legacy) return null;
@@ -72,6 +78,7 @@ function rememberedCover(appid: number, orientation: Orientation): string | null
 }
 
 function rememberCover(appid: number, orientation: Orientation, src: string): void {
+  if (dead.has(src)) return;
   const key = coverKey(appid, orientation);
   memory.set(key, src);
   try {
@@ -105,9 +112,9 @@ export function Cover({
     const usable =
       remembered &&
       (orientation === "portrait" ? !isLandscapeSrc(remembered) : !isPortraitSrc(remembered));
-    const next = (usable ? remembered : null) ?? chain[0] ?? null;
+    const next = (usable ? remembered : null) ?? firstLive(chain);
     setSrc(next);
-    setFailed(false);
+    setFailed(!next);
   }, [appid, url, orientation]);
 
   const cls = `cover cover-${size}`;
@@ -125,12 +132,22 @@ export function Cover({
       className={cls}
       src={src}
       alt={title}
-      onLoad={() => {
+      onLoad={(e) => {
+        if (e.currentTarget.naturalWidth === 0) {
+          if (src) dead.add(src);
+          const fallback = firstLive(chain);
+          if (fallback && fallback !== src) {
+            setSrc(fallback);
+            return;
+          }
+          setFailed(true);
+          return;
+        }
         if (appid != null) rememberCover(appid, orientation, src);
       }}
       onError={() => {
-        const i = chain.findIndex((u) => src === u || src.startsWith(`${u}?`));
-        const fallback = i >= 0 ? chain[i + 1] : undefined;
+        if (src) dead.add(src);
+        const fallback = firstLive(chain);
         if (fallback && fallback !== src) {
           setSrc(fallback);
           return;

@@ -188,6 +188,23 @@ export function movieCardFacts(
   ];
 }
 
+/** 图书列表卡：出版社 / 地区 / 类型 / 作者。缺的显示 —。 */
+export function bookCardFacts(
+  extra: MediaExtra,
+): { k: string; v: string; title?: string }[] {
+  const cats = formatGenres(extra.categories);
+  return [
+    { k: "出版社", v: extra.publisher || EMPTY },
+    { k: "地区", v: regionLabel(extra.countries) || EMPTY },
+    {
+      k: "类型",
+      v: cats.text || EMPTY,
+      title: cats.full || undefined,
+    },
+    { k: "作者", v: joinNames(extra.authors) || EMPTY },
+  ];
+}
+
 export function factRows(
   type: MediaType,
   extra: MediaExtra,

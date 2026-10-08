@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Cover } from "./cover";
+import { RatingStars } from "./rating-stars";
 import { ProfileRefreshButton } from "./profile-refresh-button";
 import { RefreshButton } from "./refresh-button";
 import { SteamLiveGate } from "./steam-live-gate";
@@ -42,6 +43,7 @@ export async function SteamPanel({
       ...views.family.map((g) => g.appid),
     ];
     const wantItems = await loadWantItems(hideAppIds);
+    const ratings = await loadGameRatings();
     const perfect =
       current === "perfect"
         ? await filterPerfectGames(views.library, { fromCache: data.fromCache })
@@ -148,6 +150,7 @@ export async function SteamPanel({
           <SteamList
             games={views.recent}
             paidByApp={paidByApp}
+            ratings={ratings}
             empty="近两周没有在库存或家庭库里的游玩记录。"
           />
         ) : null}
@@ -155,6 +158,7 @@ export async function SteamPanel({
           <SteamList
             games={views.played}
             paidByApp={paidByApp}
+            ratings={ratings}
             empty="库存和家庭库里还没有游玩时长。"
           />
         ) : null}
@@ -162,11 +166,12 @@ export async function SteamPanel({
           <SteamList
             games={perfect}
             paidByApp={paidByApp}
+            ratings={ratings}
             empty="还没有完美通关的游戏。库存和家庭库里成就已全部解锁的都会列在这里。"
           />
         ) : null}
         {current === "owned" ? (
-          <OwnedList games={views.owned} paidByApp={paidByApp} />
+          <OwnedList games={views.owned} paidByApp={paidByApp} ratings={ratings} />
         ) : null}
         {current === "family" ? (
           <>
@@ -174,6 +179,7 @@ export async function SteamPanel({
             <SteamList
               games={views.family}
               paidByApp={paidByApp}
+              ratings={ratings}
               empty={familyEmpty(data)}
             />
           </>
@@ -329,10 +335,12 @@ function SteamList({
   games,
   empty,
   paidByApp,
+  ratings,
 }: {
   games: SteamGameRow[];
   empty: string;
   paidByApp: Map<number, number>;
+  ratings: Map<number, number>;
 }) {
   if (games.length === 0) return <p className="empty">{empty}</p>;
   return (
@@ -344,12 +352,16 @@ function SteamList({
           data-name={game.name}
           className={isCardPerfect(game) ? "card card-perfect" : "card"}
         >
-          <Cover url={game.coverUrl} title={game.name} />
+          <Cover appid={game.appid} url={game.coverUrl} title={game.name} orientation="portrait" />
           <div className="card-body">
             <p className="card-title" title={game.name}>
               <span>{game.name}</span>
             </p>
-            <GameCardStats game={game} paidByApp={paidByApp} />
+            <GameCardStats
+              game={game}
+              paidByApp={paidByApp}
+              rating={ratings.get(game.appid) ?? null}
+            />
           </div>
         </Link>
       ))}
@@ -360,9 +372,11 @@ function SteamList({
 function GameCardStats({
   game,
   paidByApp,
+  rating,
 }: {
   game: SteamGameRow;
   paidByApp: Map<number, number>;
+  rating: number | null;
 }) {
   const achTotal = game.achTotal ?? null;
   const achUnlocked = game.achUnlocked ?? null;
@@ -395,6 +409,15 @@ function GameCardStats({
           {formatFenLabel(prices.paid)} / {formatFenLabel(prices.original)}
         </dd>
       </div>
+      <div className="card-stat">
+        <dt>评价</dt>
+        <dd
+          className={rating != null ? "card-stat-rating" : undefined}
+          title={rating != null ? formatRating(rating) : undefined}
+        >
+          {rating != null ? <RatingStars value={rating} /> : "—"}
+        </dd>
+      </div>
     </dl>
   );
 }
@@ -416,9 +439,11 @@ function ownedPriceTotals(
 function OwnedList({
   games,
   paidByApp,
+  ratings,
 }: {
   games: SteamGameRow[];
   paidByApp: Map<number, number>;
+  ratings: Map<number, number>;
 }) {
   if (games.length === 0) {
     return (
@@ -427,7 +452,21 @@ function OwnedList({
       </p>
     );
   }
-  return <SteamList games={games} paidByApp={paidByApp} empty="" />;
+  return <SteamList games={games} paidByApp={paidByApp} ratings={ratings} empty="" />;
+}
+
+async function loadGameRatings() {
+  const items = await prisma.item.findMany({
+    where: { type: "game", source: "steam", entry: { rating: { not: null } } },
+    select: { sourceId: true, entry: { select: { rating: true } } },
+  });
+  const map = new Map<number, number>();
+  for (const item of items) {
+    const appid = Number(item.sourceId);
+    const rating = item.entry?.rating;
+    if (Number.isInteger(appid) && rating != null) map.set(appid, rating);
+  }
+  return map;
 }
 
 async function loadWantItems(hideAppIds: number[]) {
